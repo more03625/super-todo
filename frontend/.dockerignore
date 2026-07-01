@@ -1,0 +1,36 @@
+# Git
+.git
+.gitignore
+
+# Dependencies (reinstalled in container)
+node_modules
+
+# Next.js build output (rebuilt in container)
+.next
+out
+
+# Environment files
+.env
+.env.*
+
+# IDE & docs
+.idea
+.vscode
+.cursor
+*.md
+!README.md
+
+# Logs & debug
+*.log
+npm-debug.log*
+
+# Tests
+**/__tests__
+**/*.test.ts
+**/*.test.tsx
+**/*.spec.ts
+**/*.spec.tsx
+
+# Misc
+.cache
+*.tsbuildinfo

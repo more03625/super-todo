@@ -1,0 +1,62 @@
+# ─── Node / Next.js ───────────────────────────────────────────
+**/node_modules/
+**/.next/
+**/out/
+**/.turbo/
+**/.swc/
+.npm/
+.pnpm-store/
+yarn-error.log
+package-lock.json.bak
+
+# ─── Python ───────────────────────────────────────────────────
+**/__pycache__/
+**/*.py[cod]
+**/*$py.class
+**/*.so
+**/.Python
+**/build/
+**/dist/
+**/*.egg-info/
+**/.pytest_cache/
+**/.coverage
+**/htmlcov/
+**/.mypy_cache/
+**/.ruff_cache/
+.venv/
+venv/
+ENV/
+
+# ─── Environment & secrets ────────────────────────────────────
+.env
+.env.*
+!.env.example
+!**/.env.local.example
+!**/.env.development
+
+# ─── IDE & OS ─────────────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*~
+.DS_Store
+Thumbs.db
+
+# ─── Logs ─────────────────────────────────────────────────────
+*.log
+npm-debug.log*
+
+# ─── Docker / local data ───────────────────────────────────────
+postgres_data/
+
+# ─── Cursor (local tooling) ───────────────────────────────────
+.cursor/
+
+# ─── TypeScript / misc caches ─────────────────────────────────
+*.tsbuildinfo
+.cache/
+*.bak
+*.tmp
+
+# ─── Sass cache (removed after Tailwind migration) ────────────
+.sass-cache/

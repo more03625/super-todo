@@ -1,0 +1,38 @@
+# Git
+.git
+.gitignore
+
+# Python caches & virtualenvs
+__pycache__
+*.py[cod]
+*$py.class
+.venv
+venv
+env
+.pytest_cache
+.coverage
+htmlcov
+*.egg-info
+dist
+build
+
+# Environment files (use env_file in compose instead)
+.env
+.env.*
+
+# IDE & docs
+.idea
+.vscode
+.cursor
+*.md
+!README.md
+
+# Logs
+*.log
+
+# Tests (not needed in runtime image)
+tests
+**/tests
+
+# Alembic local state
+alembic/versions/__pycache__

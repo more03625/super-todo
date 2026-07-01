@@ -1,0 +1,57 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: supertodo-postgres
+    environment:
+      POSTGRES_USER: supertodo
+      POSTGRES_PASSWORD: supertodo_dev
+      POSTGRES_DB: supertodo
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U supertodo -d supertodo"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: supertodo-backend
+    ports:
+      - "8000:8000"
+    environment:
+      ENVIRONMENT: development
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      DATABASE_URL: postgresql+asyncpg://supertodo:supertodo_dev@postgres:5432/supertodo
+    env_file:
+      - ./backend/.env.development
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: supertodo-frontend
+    ports:
+      - "3003:3003"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000/api/v1
+      PORT: "3003"
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+
+volumes:
+  postgres_data:
