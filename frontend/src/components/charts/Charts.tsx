@@ -13,7 +13,7 @@ function chartColors() {
   const root = document.documentElement;
   const style = getComputedStyle(root);
   return {
-    accent: style.getPropertyValue('--color-brand-500').trim() || '#6366f1',
+    accent: style.getPropertyValue('--color-navy-500').trim() || '#4a47ff',
     muted: style.getPropertyValue('--color-muted').trim() || '#6b7280',
     border: style.getPropertyValue('--color-border').trim() || '#e8eaef',
   };
@@ -71,7 +71,7 @@ export function ProductivityHeatmap({ days, range, onRangeChange }: {
             onClick={() => onRangeChange(r.key)}
             className={cn(
               'rounded-lg px-3 py-1.5 text-sm font-medium transition-colors',
-              range === r.key ? 'bg-brand-500 text-white' : 'border border-border bg-surface text-muted hover:text-foreground',
+              range === r.key ? 'bg-navy-500 text-white' : 'border border-border bg-surface text-muted hover:text-foreground',
             )}
           >
             {r.label}

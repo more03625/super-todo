@@ -33,13 +33,13 @@ export default function YearlyReportPage() {
     <ProtectedLayout>
       <div className="mb-6 flex gap-2">
         {(['weekly', 'monthly', 'yearly'] as const).map((key) => (
-          <Link key={key} href={`/reports/${key}`} className={cn('rounded-lg px-3 py-1.5 text-sm font-medium capitalize', key === 'yearly' ? 'bg-brand-500 text-white' : 'border border-border text-muted hover:text-foreground')}>{key}</Link>
+          <Link key={key} href={`/reports/${key}`} className={cn('rounded-lg px-3 py-1.5 text-sm font-medium capitalize', key === 'yearly' ? 'bg-navy-500 text-white' : 'border border-border text-muted hover:text-foreground')}>{key}</Link>
         ))}
       </div>
       {isError && <div className="mb-4 text-sm text-red-500">Failed to load. <button type="button" className="underline" onClick={() => refetch()}>Retry</button></div>}
       {isLoading ? <SkeletonCard /> : data && (
         <>
-          <div className="mb-6 rounded-2xl bg-gradient-to-br from-brand-600 via-violet-600 to-fuchsia-600 p-10 text-white">
+          <div className="mb-6 rounded-2xl bg-gradient-to-br from-navy-600 via-navy-700 to-navy-900 p-10 text-white">
             <h1 className="text-4xl font-bold">Your {data.year} Wrapped</h1>
             <p className="mt-2 text-lg text-white/80">A year of productivity, growth, and achievement.</p>
           </div>
@@ -51,7 +51,7 @@ export default function YearlyReportPage() {
           </div>
           <div className="mb-6 grid gap-4 lg:grid-cols-3">
             <div className="card p-5 lg:col-span-2"><h5 className="mb-4 font-semibold">Monthly Trend</h5><LineChart labels={data.monthly_trend.map(m => MONTHS[m.month])} data={data.monthly_trend.map(m => m.average_score)} label="Avg Score" /></div>
-            <div className="card p-5"><h5 className="mb-4 font-semibold">Achievements</h5><div className="flex flex-wrap gap-2">{data.achievements.filter(a => a.unlocked).map(a => <span key={a.id} className="badge bg-brand-500/15 text-brand-600">{a.name}</span>)}</div></div>
+            <div className="card p-5"><h5 className="mb-4 font-semibold">Achievements</h5><div className="flex flex-wrap gap-2">{data.achievements.filter(a => a.unlocked).map(a => <span key={a.id} className="badge bg-navy-500/15 text-navy-600">{a.name}</span>)}</div></div>
           </div>
           <div className="card p-5"><h5 className="mb-4 font-semibold">Year in Review</h5><ProductivityHeatmap days={data.heatmap} range="1y" onRangeChange={() => {}} /></div>
         </>

@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { DashboardShell } from '@/components/layout/DashboardShell';
+import { TodoShell } from '@/components/layout/TodoShell';
 import { SkeletonList } from '@/components/ui/SkeletonCard';
 
 export function ProtectedLayout({ children }: { children: React.ReactNode }) {
@@ -24,5 +24,5 @@ export function ProtectedLayout({ children }: { children: React.ReactNode }) {
 
   if (!user) return null;
 
-  return <DashboardShell>{children}</DashboardShell>;
+  return <TodoShell>{children}</TodoShell>;
 }

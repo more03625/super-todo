@@ -32,7 +32,7 @@ export default function RegisterPage() {
       });
       login(tokens.access_token, tokens.refresh_token);
       showToast('Account created!', 'success');
-      router.push('/dashboard');
+      router.push('/my-day');
     } catch (e) {
       showToast(getErrorMessage(e), 'error');
     }
@@ -40,11 +40,11 @@ export default function RegisterPage() {
 
   return (
     <div className="grid min-h-screen lg:grid-cols-2">
-      <div className="hidden flex-col justify-center bg-gradient-to-br from-brand-600 via-violet-600 to-fuchsia-600 p-12 text-white lg:flex">
-        <h1 className="text-4xl font-bold tracking-tight">Get started</h1>
-        <p className="mt-4 max-w-md text-lg text-white/80">Track tasks, measure productivity, and unlock achievements.</p>
+      <div className="hidden flex-col justify-center bg-gradient-to-br from-navy-50 via-navy-100 to-white p-12 lg:flex">
+        <h1 className="text-4xl font-bold tracking-tight text-navy-900">Get started</h1>
+        <p className="mt-4 max-w-md text-lg text-muted">Simple daily tasks. No clutter, no complexity.</p>
       </div>
-      <div className="flex items-center justify-center p-6">
+      <div className="flex items-center justify-center bg-surface-elevated p-6">
         <div className="card w-full max-w-md p-8">
           <h2 className="text-xl font-semibold text-foreground">Create account</h2>
           <p className="mt-1 text-sm text-muted">Start your productivity journey</p>
@@ -68,7 +68,7 @@ export default function RegisterPage() {
             </button>
           </form>
           <p className="mt-6 text-center text-sm text-muted">
-            Have an account? <Link href="/login" className="font-medium text-brand-500 hover:underline">Sign in</Link>
+            Have an account? <Link href="/login" className="font-medium text-navy-500 hover:underline">Sign in</Link>
           </p>
         </div>
       </div>

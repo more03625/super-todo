@@ -4,10 +4,9 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 import {
-  LayoutDashboard, CheckSquare, Tags, PieChart, BarChart3, Trophy, Flame, Settings, Menu, X, Sun, Moon, LogOut,
+  LayoutDashboard, CheckSquare, Tags, PieChart, BarChart3, Trophy, Flame, Settings, Menu, X, LogOut,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useTheme } from '@/contexts/ThemeContext';
 import { cn } from '@/lib/utils';
 
 const NAV_ITEMS = [
@@ -26,7 +25,7 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <nav className="space-y-1 px-3 py-4">
       <Link href="/dashboard" onClick={onNavigate} className="mb-6 block px-3">
-        <span className="bg-gradient-to-r from-brand-500 to-violet-500 bg-clip-text text-xl font-bold text-transparent">
+        <span className="bg-gradient-to-r from-navy-500 to-gold-400 bg-clip-text text-xl font-bold text-transparent">
           SuperToDo
         </span>
       </Link>
@@ -51,7 +50,6 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth();
-  const { theme, toggleTheme } = useTheme();
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
@@ -80,9 +78,6 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
             <Menu className="h-5 w-5" />
           </button>
           <div className="ml-auto flex items-center gap-3">
-            <button type="button" onClick={toggleTheme} className="btn-secondary !px-2.5 !py-2" aria-label="Toggle theme">
-              {theme === 'light' ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
-            </button>
             <span className="hidden text-sm text-muted md:inline">{user?.email}</span>
             <button type="button" onClick={logout} className="btn-danger flex items-center gap-1.5">
               <LogOut className="h-4 w-4" /> Logout

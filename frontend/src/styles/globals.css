@@ -1,33 +1,44 @@
 @import "tailwindcss";
 
-@custom-variant dark (&:where(.dark, .dark *));
-
 @theme {
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
-  --color-brand-50: #eef2ff;
-  --color-brand-100: #e0e7ff;
-  --color-brand-500: #6366f1;
-  --color-brand-600: #4f46e5;
-  --color-brand-400: #818cf8;
+  --color-navy-50: #f0f3ff;
+  --color-navy-100: #dde3ff;
+  --color-navy-200: #c2caff;
+  --color-navy-300: #97a3ff;
+  --color-navy-400: #6b71ff;
+  --color-navy-500: #4a47ff;
+  --color-navy-600: #3b28f5;
+  --color-navy-700: #321dd8;
+  --color-navy-800: #291aae;
+  --color-navy-900: #0f172a;
+  --color-navy-950: #080d1a;
+  --color-gold-50: #fffbeb;
+  --color-gold-100: #fef3c7;
+  --color-gold-200: #fde68a;
+  --color-gold-300: #fcd34d;
+  --color-gold-400: #fbbf24;
+  --color-gold-500: #f59e0b;
+  --color-gold-600: #d97706;
+  --color-gold-700: #b45309;
+  --color-gold-800: #92400e;
+  --color-gold-900: #78350f;
   --color-surface: #ffffff;
-  --color-surface-elevated: #f8f9fc;
-  --color-border: #e8eaef;
+  --color-surface-elevated: #f5f6f8;
+  --color-border: #e5e7eb;
   --color-muted: #6b7280;
-  --color-foreground: #1a1d27;
+  --color-foreground: #1f2937;
   --color-success: #10b981;
   --color-warning: #f59e0b;
   --color-danger: #ef4444;
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --radius-card: 12px;
   --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
-  --shadow-card-hover: 0 8px 24px rgba(99, 102, 241, 0.12);
+  --shadow-card-hover: 0 8px 24px rgba(74, 71, 255, 0.1);
 }
 
-.dark {
-  --color-surface: #1a1d27;
-  --color-surface-elevated: #0f1117;
-  --color-border: #2a2f3d;
-  --color-muted: #9ca3af;
-  --color-foreground: #f0f2f5;
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #c2caff #f5f6f8;
 }
 
 @layer base {
@@ -35,8 +46,62 @@
     @apply antialiased;
   }
   body {
-    @apply bg-surface-elevated text-foreground font-sans text-[15px];
+    font-family: "Inter", system-ui, sans-serif;
+    background: #f5f6f8;
+    min-height: 100vh;
+    color: #1f2937;
+    @apply text-[15px];
   }
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes toastIn {
+  from { opacity: 0; transform: translateX(100%); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes toastOut {
+  from { opacity: 1; transform: translateX(0); }
+  to { opacity: 0; transform: translateX(100%); }
+}
+
+.animate-slide-in { animation: slideIn 0.3s ease-out; }
+.animate-fade-in { animation: fadeIn 0.3s ease-out; }
+.animate-slide-up { animation: slideUp 0.4s ease-out; }
+.animate-toast-in { animation: toastIn 0.3s ease-out; }
+.animate-toast-out { animation: toastOut 0.3s ease-in; }
+
+button,
+[role="button"],
+label,
+a {
+  transition: transform 0.1s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:active,
+[role="button"]:active,
+label:active,
+a:active {
+  transform: scale(0.97);
+}
+
+button:disabled:active {
+  transform: none;
 }
 
 @layer components {
@@ -47,27 +112,61 @@
     @apply transition-all duration-150 hover:shadow-[var(--shadow-card-hover)] hover:-translate-y-0.5;
   }
   .btn-primary {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-600 disabled:opacity-50;
+    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-navy-500 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-navy-600 disabled:opacity-50;
   }
   .btn-secondary {
     @apply inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-surface px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-surface-elevated disabled:opacity-50;
   }
   .btn-danger {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg border border-red-200 px-3 py-1.5 text-sm text-red-600 transition-colors hover:bg-red-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950;
+    @apply inline-flex items-center justify-center gap-2 rounded-lg border border-red-200 px-3 py-1.5 text-sm text-red-600 transition-colors hover:bg-red-50;
   }
   .input {
-    @apply w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-sm text-foreground outline-none transition-colors placeholder:text-muted focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20;
+    @apply w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-sm text-foreground outline-none transition-colors placeholder:text-muted focus:border-navy-500 focus:ring-2 focus:ring-navy-500/15;
   }
   .nav-link {
-    @apply flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-muted transition-all duration-150 hover:bg-brand-500/10 hover:text-brand-500;
+    @apply flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-muted transition-all duration-150 hover:bg-navy-50 hover:text-navy-600;
   }
   .nav-link-active {
-    @apply border-l-[3px] border-brand-500 bg-brand-500/10 font-medium text-brand-500;
+    @apply border-l-[3px] border-navy-500 bg-navy-50 font-medium text-navy-600;
   }
   .badge {
     @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium;
   }
   .skeleton {
-    @apply animate-pulse rounded-lg bg-border/60;
+    @apply animate-pulse rounded-lg bg-gray-200;
+  }
+
+  .todo-sidebar {
+    @apply bg-surface border-r border-border;
+  }
+  .todo-main {
+    @apply flex min-h-0 flex-1 flex-col bg-surface-elevated;
+    animation: fadeIn 0.3s ease-out;
+  }
+  .todo-quick-add {
+    @apply fixed bottom-0 left-0 right-0 z-20 border-t border-border bg-surface px-4 py-4 shadow-[0_-4px_12px_rgba(0,0,0,0.06)] lg:left-[260px];
+    animation: slideUp 0.4s ease-out;
+  }
+  .todo-empty {
+    @apply mx-auto max-w-md rounded-[var(--radius-card)] border border-border bg-surface p-8 text-center shadow-[var(--shadow-card)];
+    animation: slideIn 0.3s ease-out;
+  }
+  .todo-checkbox {
+    @apply flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 border-gray-300 bg-white transition-colors hover:border-navy-400;
+  }
+  .todo-checkbox-completed {
+    @apply border-navy-500 bg-navy-500;
+  }
+}
+
+@media print {
+  body {
+    background: white !important;
+    color: black !important;
+  }
+  header,
+  nav,
+  aside {
+    display: none !important;
   }
 }

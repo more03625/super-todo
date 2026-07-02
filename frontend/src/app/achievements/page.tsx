@@ -26,7 +26,7 @@ export default function AchievementsPage() {
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {data.map((a) => (
             <div key={a.id} className={cn('card p-6 text-center', !a.unlocked && 'opacity-50 grayscale')}>
-              <Trophy className={cn('mx-auto mb-3 h-10 w-10', a.unlocked ? 'text-brand-500' : 'text-muted')} />
+              <Trophy className={cn('mx-auto mb-3 h-10 w-10', a.unlocked ? 'text-navy-500' : 'text-muted')} />
               <h6 className="font-semibold text-foreground">{a.name}</h6>
               <p className="mt-1 text-sm text-muted">{a.description}</p>
               {a.unlocked && a.unlocked_at && <p className="mt-2 text-xs text-emerald-600">Unlocked {new Date(a.unlocked_at).toLocaleDateString()}</p>}

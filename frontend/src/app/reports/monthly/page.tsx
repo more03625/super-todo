@@ -29,7 +29,7 @@ function ReportTabs({ active }: { active: 'weekly' | 'monthly' | 'yearly' }) {
   return (
     <div className="flex gap-2">
       {tabs.map((t) => (
-        <Link key={t.key} href={t.href} className={cn('rounded-lg px-3 py-1.5 text-sm font-medium', active === t.key ? 'bg-brand-500 text-white' : 'border border-border text-muted hover:text-foreground')}>{t.label}</Link>
+        <Link key={t.key} href={t.href} className={cn('rounded-lg px-3 py-1.5 text-sm font-medium', active === t.key ? 'bg-navy-500 text-white' : 'border border-border text-muted hover:text-foreground')}>{t.label}</Link>
       ))}
     </div>
   );

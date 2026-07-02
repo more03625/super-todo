@@ -27,7 +27,7 @@ export default function LoginPage() {
       const tokens = await apiPost<{ access_token: string; refresh_token: string }>('/auth/login', data);
       login(tokens.access_token, tokens.refresh_token);
       showToast('Welcome back!', 'success');
-      router.push('/dashboard');
+      router.push('/my-day');
     } catch (e) {
       showToast(getErrorMessage(e), 'error');
     }
@@ -35,13 +35,13 @@ export default function LoginPage() {
 
   return (
     <div className="grid min-h-screen lg:grid-cols-2">
-      <div className="hidden flex-col justify-center bg-gradient-to-br from-brand-600 via-violet-600 to-fuchsia-600 p-12 text-white lg:flex">
-        <h1 className="text-4xl font-bold tracking-tight">SuperToDo</h1>
-        <p className="mt-4 max-w-md text-lg text-white/80">
-          Your personal operating system for productivity, analytics, and growth.
+      <div className="hidden flex-col justify-center bg-gradient-to-br from-navy-50 via-navy-100 to-white p-12 lg:flex">
+        <h1 className="text-4xl font-bold tracking-tight text-navy-900">SuperToDo</h1>
+        <p className="mt-4 max-w-md text-lg text-muted">
+          Focus on your day. Add tasks, check them off, keep it simple.
         </p>
       </div>
-      <div className="flex items-center justify-center p-6">
+      <div className="flex items-center justify-center bg-surface-elevated p-6">
         <div className="card w-full max-w-md p-8">
           <h2 className="text-xl font-semibold text-foreground">Sign in</h2>
           <p className="mt-1 text-sm text-muted">Enter your credentials to continue</p>
@@ -61,7 +61,7 @@ export default function LoginPage() {
             </button>
           </form>
           <p className="mt-6 text-center text-sm text-muted">
-            No account? <Link href="/register" className="font-medium text-brand-500 hover:underline">Create one</Link>
+            No account? <Link href="/register" className="font-medium text-navy-500 hover:underline">Create one</Link>
           </p>
         </div>
       </div>
