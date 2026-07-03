@@ -1,5 +1,8 @@
 // @ts-nocheck
 import React, { useState, useEffect, useRef, useId } from "react";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/contexts/AuthContext";
+import { useRitualTasks } from "@/hooks/useRitualTasks";
 
 /* ---------------- design tokens ---------------- */
 const COLORS = {
@@ -603,7 +606,7 @@ function AnimatedView({ children }) {
 }
 
 /* ---------------- Day View ---------------- */
-function DayView({ date, tasksByDate, addTask, toggleTask, deleteTask, onOpenWeek }) {
+function DayView({ date, tasksByDate, addTask, toggleTask, deleteTask, onOpenWeek, userInitials = "?" }) {
   const key = dateKey(date);
   const tasks = tasksByDate[key];
   const { done, total, pct } = progressFor(tasks);
@@ -648,7 +651,7 @@ function DayView({ date, tasksByDate, addTask, toggleTask, deleteTask, onOpenWee
               flexShrink: 0,
             }}
           >
-            RM
+            {userInitials}
           </div>
         </div>
 
@@ -932,101 +935,108 @@ function MonthSheet({ initial, tasksByDate, onClose, onSelectDate }) {
   );
 }
 
-/* ---------------- seed data ---------------- */
-function seedData() {
-  const today = new Date();
-  const y = addDays(today, -1);
-  const y2 = addDays(today, -2);
-  return {
-    [dateKey(today)]: [
-      { id: "a", title: "Review Google SSE resume gaps", done: true },
-      { id: "b", title: "Ship fuel receipt app print fix", done: true },
-      { id: "c", title: "Reply to Instagram DMs", done: false },
-      { id: "d", title: "Gym — leg day", done: false },
-    ],
-    [dateKey(y)]: [
-      { id: "e", title: "Record vlog b-roll", done: true },
-      { id: "f", title: "Plan 30-day content calendar", done: true },
-    ],
-    [dateKey(y2)]: [
-      { id: "g", title: "Firestore sync spike", done: true },
-      { id: "h", title: "PAN card update follow-up", done: false },
-      { id: "i", title: "Cricket practice", done: true },
-    ],
-  };
+/* ---------------- App ---------------- */
+function userInitials(user) {
+  if (user?.full_name) {
+    const parts = user.full_name.trim().split(/\s+/);
+    return ((parts[0]?.[0] || "") + (parts[1]?.[0] || "")).toUpperCase() || "?";
+  }
+  return user?.email?.[0]?.toUpperCase() || "?";
 }
 
-/* ---------------- App ---------------- */
 export default function App() {
   const today = new Date();
-  const [view, setView] = useState("day");
-  const [anchor, setAnchor] = useState(today);
-  const [selected, setSelected] = useState(today);
-  const [monthOpen, setMonthOpen] = useState(false);
-  const [tasksByDate, setTasksByDate] = useState(seedData);
+  const router = useRouter();
+  const { user } = useAuth();
+  const { tasksByDate, isLoading, isError, refetch, addTask, toggleTask, deleteTask } = useRitualTasks();
 
-  function addTask(key, title) {
-    const id = `${Date.now()}-${Math.random()}`;
-    setTasksByDate((prev) => ({
-      ...prev,
-      [key]: [...(prev[key] || []), { id, title, done: false }],
-    }));
-    return id;
-  }
-  function toggleTask(key, id) {
-    setTasksByDate((prev) => ({
-      ...prev,
-      [key]: (prev[key] || []).map((t) => (t.id === id ? { ...t, done: !t.done } : t)),
-    }));
-  }
-  function deleteTask(key, id) {
-    setTasksByDate((prev) => ({ ...prev, [key]: (prev[key] || []).filter((t) => t.id !== id) }));
-  }
+  const initials = userInitials(user);
 
   return (
     <div style={{ background: COLORS.bg, color: COLORS.hi, height: "100dvh", maxHeight: "100dvh", overflow: "hidden", fontFamily: "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
       <style>{GLOBAL_CSS}</style>
-      {view === "day" ? (
-        <DayView
-          key="day"
-          date={today}
-          tasksByDate={tasksByDate}
-          addTask={addTask}
-          toggleTask={toggleTask}
-          deleteTask={deleteTask}
-          onOpenWeek={() => {
-            setAnchor(today);
-            setSelected(today);
-            setView("week");
-          }}
-        />
+      {isLoading ? (
+        <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>
+          <div style={{ width: 32, height: 32, borderRadius: "50%", border: `2px solid ${COLORS.border}`, borderTopColor: COLORS.accent, animation: "ritualSpin 0.7s linear infinite" }} />
+          <style>{`@keyframes ritualSpin { to { transform: rotate(360deg); } }`}</style>
+        </div>
       ) : (
-        <WeekView
-          key="week"
-          anchor={anchor}
-          setAnchor={setAnchor}
-          selected={selected}
-          setSelected={setSelected}
-          tasksByDate={tasksByDate}
-          toggleTask={toggleTask}
-          deleteTask={deleteTask}
-          addTask={addTask}
-          onBack={() => setView("day")}
-          onOpenMonth={() => setMonthOpen(true)}
-        />
+        <>
+          {isError && (
+            <div style={{ padding: "12px 16px", background: "#FEE2E2", color: "#B91C1C", fontSize: 13, textAlign: "center" }}>
+              Failed to load tasks.{" "}
+              <button type="button" onClick={() => refetch()} style={{ textDecoration: "underline", cursor: "pointer", color: "inherit" }}>
+                Retry
+              </button>
+            </div>
+          )}
+          <DayView
+            key="day"
+            date={today}
+            tasksByDate={tasksByDate}
+            addTask={addTask}
+            toggleTask={toggleTask}
+            deleteTask={deleteTask}
+            userInitials={initials}
+            onOpenWeek={() => router.push("/week")}
+          />
+        </>
       )}
+    </div>
+  );
+}
 
-      {monthOpen && (
-        <MonthSheet
-          initial={anchor}
-          tasksByDate={tasksByDate}
-          onClose={() => setMonthOpen(false)}
-          onSelectDate={(d) => {
-            setAnchor(d);
-            setSelected(d);
-            setView("week");
-          }}
-        />
+/* ---------------- Week Page App (standalone route) ---------------- */
+export function WeekApp() {
+  const today = new Date();
+  const router = useRouter();
+  const { tasksByDate, isLoading, isError, refetch, addTask, toggleTask, deleteTask } = useRitualTasks();
+  const [anchor, setAnchor] = useState(today);
+  const [selected, setSelected] = useState(today);
+  const [monthOpen, setMonthOpen] = useState(false);
+
+  return (
+    <div style={{ background: COLORS.bg, color: COLORS.hi, height: "100dvh", maxHeight: "100dvh", overflow: "hidden", fontFamily: "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
+      <style>{GLOBAL_CSS}</style>
+      {isLoading ? (
+        <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>
+          <div style={{ width: 32, height: 32, borderRadius: "50%", border: `2px solid ${COLORS.border}`, borderTopColor: COLORS.accent, animation: "ritualSpin 0.7s linear infinite" }} />
+          <style>{`@keyframes ritualSpin { to { transform: rotate(360deg); } }`}</style>
+        </div>
+      ) : (
+        <>
+          {isError && (
+            <div style={{ padding: "12px 16px", background: "#FEE2E2", color: "#B91C1C", fontSize: 13, textAlign: "center" }}>
+              Failed to load tasks.{" "}
+              <button type="button" onClick={() => refetch()} style={{ textDecoration: "underline", cursor: "pointer", color: "inherit" }}>
+                Retry
+              </button>
+            </div>
+          )}
+          <WeekView
+            anchor={anchor}
+            setAnchor={setAnchor}
+            selected={selected}
+            setSelected={setSelected}
+            tasksByDate={tasksByDate}
+            toggleTask={toggleTask}
+            deleteTask={deleteTask}
+            addTask={addTask}
+            onBack={() => router.push("/")}
+            onOpenMonth={() => setMonthOpen(true)}
+          />
+          {monthOpen && (
+            <MonthSheet
+              initial={anchor}
+              tasksByDate={tasksByDate}
+              onClose={() => setMonthOpen(false)}
+              onSelectDate={(d) => {
+                setAnchor(d);
+                setSelected(d);
+              }}
+            />
+          )}
+        </>
       )}
     </div>
   );

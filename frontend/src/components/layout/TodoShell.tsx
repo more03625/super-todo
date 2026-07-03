@@ -8,7 +8,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 
 const NAV_ITEMS = [
-  { href: '/my-day', label: 'My Day', icon: Sun },
+  { href: '/', label: 'My Day', icon: Sun },
   { href: '/settings', label: 'Settings', icon: Settings },
 ];
 
@@ -44,7 +44,7 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
       </div>
 
       <nav className="flex-1 space-y-1 px-3 py-4">
-        <Link href="/my-day" onClick={onNavigate} className="mb-4 block px-3">
+        <Link href="/" onClick={onNavigate} className="mb-4 block px-3">
           <span className="bg-gradient-to-r from-navy-600 to-navy-400 bg-clip-text text-xl font-bold text-transparent">
             SuperToDo
           </span>

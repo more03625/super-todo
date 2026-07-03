@@ -27,7 +27,7 @@ export default function LoginPage() {
       const tokens = await apiPost<{ access_token: string; refresh_token: string }>('/auth/login', data);
       login(tokens.access_token, tokens.refresh_token);
       showToast('Welcome back!', 'success');
-      router.push('/my-day');
+      router.push('/');
     } catch (e) {
       showToast(getErrorMessage(e), 'error');
     }

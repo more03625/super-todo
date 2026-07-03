@@ -32,7 +32,7 @@ export default function RegisterPage() {
       });
       login(tokens.access_token, tokens.refresh_token);
       showToast('Account created!', 'success');
-      router.push('/my-day');
+      router.push('/');
     } catch (e) {
       showToast(getErrorMessage(e), 'error');
     }
