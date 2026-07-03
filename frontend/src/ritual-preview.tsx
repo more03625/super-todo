@@ -24,10 +24,18 @@ const GLOBAL_CSS = `
   button:focus { outline: none; }
 
   .app-shell {
+    width: 100%;
     max-width: 440px;
     margin: 0 auto;
-    padding: 24px 16px 130px;
-    min-height: 100dvh;
+    padding: 24px 16px 0;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .page-header {
+    flex-shrink: 0;
   }
 
   /* Mobile: flex column with gap so cards always have breathing room */
@@ -35,6 +43,62 @@ const GLOBAL_CSS = `
     display: flex;
     flex-direction: column;
     gap: 16px;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .split > .card {
+    flex-shrink: 0;
+  }
+
+  /* Tasks panel: header + scrollable list only */
+  .task-list-card {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+    padding: 0;
+    flex: 1;
+  }
+  .task-list-card .task-list-header {
+    flex-shrink: 0;
+    padding: 16px 16px 12px;
+    margin: 0;
+  }
+  .task-list-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    padding: 0 16px 8px;
+  }
+
+  /* Page-level docked composer */
+  .bottom-composer {
+    flex-shrink: 0;
+    padding: 12px 0 max(24px, env(safe-area-inset-bottom, 0px));
+  }
+  .bottom-composer-field {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border-radius: 18px;
+    background: ${COLORS.card};
+    border: 1px solid ${COLORS.border};
+    padding: 14px 18px;
+    box-shadow: 0 4px 16px rgba(16, 24, 40, 0.08), 0 1px 3px rgba(16, 24, 40, 0.06);
+  }
+  .composer-input::placeholder {
+    color: ${COLORS.low};
+  }
+
+  .view-root {
+    height: 100%;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
   }
 
   .card {
@@ -56,15 +120,9 @@ const GLOBAL_CSS = `
     border-radius: 18px;
     border: 1px solid transparent;
     background: transparent;
-    transition: background 0.2s, border-color 0.2s;
     min-width: 0;
     overflow: hidden;
   }
-  .day-pill.selected {
-    background: ${COLORS.accentLight};
-    border-color: ${COLORS.accent};
-  }
-
   /* 7-column day pill grid — cells shrink to fill available width */
   .week-day-grid {
     display: grid;
@@ -88,18 +146,33 @@ const GLOBAL_CSS = `
     transition: opacity 0.28s ease, transform 0.32s cubic-bezier(.22,1,.36,1);
   }
 
+  .task-enter {
+    animation: taskFadeIn 220ms cubic-bezier(.22,1,.36,1) forwards;
+  }
+  @keyframes taskFadeIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .composer-input::placeholder {
+    color: ${COLORS.low};
+  }
+
   @media (min-width: 860px) {
-    .app-shell { max-width: 1200px; padding: 48px 56px 100px; }
+    .app-shell { max-width: 1200px; padding: 48px 56px 0; }
     .split {
       display: grid;
       grid-template-columns: minmax(420px, 480px) 1fr;
+      grid-template-rows: minmax(0, 1fr);
       gap: 32px;
-      align-items: start;
+      align-items: stretch;
     }
-    .split > .card, .split > .card-outline { height: fit-content; }
+    .split > .card { align-self: start; }
+    /* Tasks card fills the full column height so ~6-8 tasks are visible before scrolling */
+    .task-list-card { height: 100%; min-height: 0; }
   }
   @media (min-width: 1400px) {
-    .app-shell { max-width: 1440px; padding: 56px 72px 100px; }
+    .app-shell { max-width: 1440px; padding: 56px 72px 0; }
     .split { grid-template-columns: minmax(460px, 560px) 1fr; gap: 40px; }
   }
 `;
@@ -208,9 +281,9 @@ const CheckIcon = () => (
     <path d="M1 5L4.5 8.5L11 1.5" stroke="#FFFFFF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 );
-const PlusIcon = () => (
-  <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-    <path d="M12 5V19M5 12H19" stroke="#FFFFFF" strokeWidth="2.5" strokeLinecap="round" />
+const PlusSmallIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+    <path d="M12 5V19M5 12H19" stroke={COLORS.low} strokeWidth="2" strokeLinecap="round" />
   </svg>
 );
 const BackIcon = () => (
@@ -320,7 +393,7 @@ function Ring({ pct, size = 220, stroke = 26, showHead = true, label, sublabel, 
 }
 
 /* ---------------- TaskItem (swipe to delete) ---------------- */
-function TaskItem({ task, onToggle, onDelete }) {
+function TaskItem({ task, onToggle, onDelete, isNew = false }) {
   const [dx, setDx] = useState(0);
   const [dragging, setDragging] = useState(false);
   const startX = useRef(null);
@@ -343,7 +416,7 @@ function TaskItem({ task, onToggle, onDelete }) {
   }
 
   return (
-    <div style={{ position: "relative", marginBottom: 8 }}>
+    <div className={isNew ? "task-enter" : undefined} style={{ position: "relative", marginBottom: 8 }}>
       <div
         style={{
           position: "absolute",
@@ -416,112 +489,67 @@ function TaskItem({ task, onToggle, onDelete }) {
   );
 }
 
-/* ---------------- AddTask ---------------- */
-function AddTask({ onAdd }) {
-  const [open, setOpen] = useState(false);
-  const [value, setValue] = useState("");
+/* ---------------- BottomTaskComposer ---------------- */
+function BottomTaskComposer({ value, onChange, onSubmit, placeholder = "Add a new task...", autoFocus = false }) {
+  const inputRef = useRef(null);
 
-  function submit() {
-    if (value.trim()) onAdd(value.trim());
-    setValue("");
-    setOpen(false);
+  useEffect(() => {
+    if (autoFocus) inputRef.current?.focus();
+  }, [autoFocus]);
+
+  function handleSubmit() {
+    onSubmit();
+    requestAnimationFrame(() => inputRef.current?.focus());
   }
 
   return (
-    <>
-      <div
-        onClick={() => setOpen(false)}
-        style={{
-          position: "fixed",
-          inset: 0,
-          background: "rgba(15, 23, 42, 0.35)",
-          backdropFilter: "blur(4px)",
-          zIndex: 40,
-          opacity: open ? 1 : 0,
-          pointerEvents: open ? "auto" : "none",
-          transition: "opacity 0.25s",
-        }}
-      />
-      <div
-        style={{
-          position: "fixed",
-          left: "50%",
-          bottom: open ? 96 : -120,
-          transform: "translateX(-50%)",
-          width: "min(400px, 90vw)",
-          background: COLORS.raised,
-          borderRadius: 20,
-          padding: 8,
-          border: `1px solid ${COLORS.border}`,
-          zIndex: 50,
-          opacity: open ? 1 : 0,
-          transition: "bottom 0.35s cubic-bezier(.22,1,.36,1), opacity 0.25s",
-          boxShadow: "0 12px 40px rgba(16, 24, 40, 0.12)",
-        }}
-      >
-        <input
-          autoFocus={open}
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && submit()}
-          placeholder="What do you want to get done?"
+    <div className="bottom-composer">
+      <div className="bottom-composer-field" onClick={() => inputRef.current?.focus()}>
+        <div
+          aria-hidden
           style={{
-            width: "100%",
+            width: 24,
+            height: 24,
+            borderRadius: "50%",
+            border: `1.5px solid ${COLORS.borderStrong}`,
+            background: "transparent",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flexShrink: 0,
+            opacity: 0.7,
+          }}
+        >
+          <PlusSmallIcon />
+        </div>
+        <input
+          ref={inputRef}
+          className="composer-input"
+          type="text"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              handleSubmit();
+            }
+          }}
+          placeholder={placeholder}
+          aria-label={placeholder}
+          style={{
+            flex: 1,
+            minWidth: 0,
             background: "transparent",
             border: "none",
             outline: "none",
             color: COLORS.hi,
             fontSize: 15,
-            padding: "12px 16px",
-            boxSizing: "border-box",
+            padding: 0,
+            fontFamily: "inherit",
           }}
         />
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, padding: "0 8px 4px" }}>
-          <button
-            onClick={() => setOpen(false)}
-            style={{ padding: "6px 12px", fontSize: 14, color: COLORS.mid, cursor: "pointer" }}
-          >
-            Cancel
-          </button>
-          <button
-            onClick={submit}
-            style={{
-              padding: "6px 16px",
-              fontSize: 14,
-              fontWeight: 600,
-              color: "#FFFFFF",
-              background: COLORS.accent,
-              borderRadius: 8,
-              cursor: "pointer",
-            }}
-          >
-            Add
-          </button>
-        </div>
       </div>
-      <button
-        onClick={() => setOpen(true)}
-        aria-label="Add task"
-        style={{
-          position: "fixed",
-          bottom: 24,
-          right: 24,
-          width: 56,
-          height: 56,
-          borderRadius: "50%",
-          background: COLORS.accent,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          border: `1px solid ${COLORS.accent}`,
-          boxShadow: "0 8px 24px rgba(37, 99, 235, 0.28)",
-          zIndex: 30,
-          cursor: "pointer",
-        }}
-      >
-        <PlusIcon />
-      </button>
-    </>
+    </div>
   );
 }
 
@@ -533,20 +561,30 @@ function progressFor(tasks) {
 }
 
 /* ---------------- Task list card ---------------- */
-function TaskListCard({ title, tasks, dateKeyStr, toggleTask, deleteTask }) {
+function TaskListCard({ title, tasks, dateKeyStr, toggleTask, deleteTask, lastAddedId }) {
+  const listRef = useRef(null);
+
+  useEffect(() => {
+    if (!listRef.current) return;
+    listRef.current.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" });
+  }, [lastAddedId, tasks?.length]);
+
   return (
-    <div className="card-outline">
-      <h2 style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, color: COLORS.mid, margin: "0 0 14px" }}>
+    <div className="card-outline task-list-card">
+      <h2 className="task-list-header" style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, color: COLORS.mid }}>
         {title}
       </h2>
-      {(!tasks || tasks.length === 0) && (
-        <div style={{ borderRadius: 16, border: `1px dashed ${COLORS.borderStrong}`, padding: "28px 16px", textAlign: "center" }}>
-          <p style={{ fontSize: 14, color: COLORS.mid, margin: 0 }}>Nothing here yet.</p>
-        </div>
-      )}
-      {tasks?.map((t) => (
-        <TaskItem key={t.id} task={t} onToggle={() => toggleTask(dateKeyStr, t.id)} onDelete={() => deleteTask(dateKeyStr, t.id)} />
-      ))}
+      <div className="task-list-scroll" ref={listRef}>
+        {tasks?.map((t) => (
+          <TaskItem
+            key={t.id}
+            task={t}
+            isNew={t.id === lastAddedId}
+            onToggle={() => toggleTask(dateKeyStr, t.id)}
+            onDelete={() => deleteTask(dateKeyStr, t.id)}
+          />
+        ))}
+      </div>
     </div>
   );
 }
@@ -561,7 +599,7 @@ function AnimatedView({ children }) {
     });
     return () => cancelAnimationFrame(id);
   }, []);
-  return <div className={`view-${phase}`}>{children}</div>;
+  return <div className={`view-${phase} view-root`}>{children}</div>;
 }
 
 /* ---------------- Day View ---------------- */
@@ -572,11 +610,22 @@ function DayView({ date, tasksByDate, addTask, toggleTask, deleteTask, onOpenWee
   const windowWidth = useWindowWidth();
   const ringSize = windowWidth < 400 ? 140 : 168;
   const ringStroke = windowWidth < 400 ? 18 : 22;
+  const [draft, setDraft] = useState("");
+  const [lastAddedId, setLastAddedId] = useState(null);
+
+  function submitDraft() {
+    const trimmed = draft.trim();
+    if (!trimmed) return;
+    const id = addTask(key, trimmed);
+    setDraft("");
+    setLastAddedId(id);
+    setTimeout(() => setLastAddedId(null), 220);
+  }
 
   return (
     <AnimatedView>
       <div className="app-shell">
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 28 }}>
+        <div className="page-header" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 28 }}>
           <div>
             <p style={{ fontSize: 13, fontWeight: 500, textTransform: "uppercase", letterSpacing: 0.6, color: COLORS.mid, margin: 0 }}>
               {fmtWeekday(date)}
@@ -630,17 +679,29 @@ function DayView({ date, tasksByDate, addTask, toggleTask, deleteTask, onOpenWee
             </div>
           </div>
 
-          <TaskListCard title="Tasks" tasks={tasks} dateKeyStr={key} toggleTask={toggleTask} deleteTask={deleteTask} />
+          <TaskListCard
+            title="Tasks"
+            tasks={tasks}
+            dateKeyStr={key}
+            toggleTask={toggleTask}
+            deleteTask={deleteTask}
+            lastAddedId={lastAddedId}
+          />
         </div>
 
-        <AddTask onAdd={(title) => addTask(key, title)} />
+        <BottomTaskComposer
+          value={draft}
+          onChange={setDraft}
+          onSubmit={submitDraft}
+          placeholder="Add a new task..."
+        />
       </div>
     </AnimatedView>
   );
 }
 
 /* ---------------- Week View ---------------- */
-function WeekView({ anchor, setAnchor, selected, setSelected, tasksByDate, toggleTask, deleteTask, onBack, onOpenMonth }) {
+function WeekView({ anchor, setAnchor, selected, setSelected, tasksByDate, toggleTask, deleteTask, addTask, onBack, onOpenMonth }) {
   const days = weekDays(anchor);
   const today = new Date();
   const selKey = dateKey(selected);
@@ -653,6 +714,22 @@ function WeekView({ anchor, setAnchor, selected, setSelected, tasksByDate, toggl
   const miniStroke = windowWidth < 400 ? 6 : 7;
   const mainRingSize = windowWidth < 400 ? 160 : windowWidth < 480 ? 180 : 200;
   const mainStroke = windowWidth < 400 ? 20 : 24;
+  const [draft, setDraft] = useState("");
+  const [lastAddedId, setLastAddedId] = useState(null);
+
+  useEffect(() => {
+    setDraft("");
+    setLastAddedId(null);
+  }, [selKey]);
+
+  function submitDraft() {
+    const trimmed = draft.trim();
+    if (!trimmed) return;
+    const id = addTask(selKey, trimmed);
+    setDraft("");
+    setLastAddedId(id);
+    setTimeout(() => setLastAddedId(null), 220);
+  }
 
   function goWeek(delta) {
     const next = addDays(anchor, delta * 7);
@@ -663,7 +740,7 @@ function WeekView({ anchor, setAnchor, selected, setSelected, tasksByDate, toggl
   return (
     <AnimatedView>
       <div className="app-shell">
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+        <div className="page-header" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
           <button
             onClick={onBack}
             style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 14, fontWeight: 600, color: COLORS.accent, cursor: "pointer", padding: 0, flexShrink: 0 }}
@@ -706,14 +783,22 @@ function WeekView({ anchor, setAnchor, selected, setSelected, tasksByDate, toggl
                   <button
                     key={k}
                     onClick={() => setSelected(d)}
-                    className={`day-pill${isSelected ? " selected" : ""}`}
+                    className="day-pill"
                     style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 5, cursor: "pointer" }}
                   >
                     <span
                       style={{
+                        width: 18,
+                        height: 18,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        borderRadius: "50%",
                         fontSize: 10,
-                        fontWeight: isToday ? 700 : 500,
-                        color: isToday ? COLORS.accent : COLORS.mid,
+                        fontWeight: isSelected ? 700 : isToday ? 700 : 500,
+                        background: isSelected ? COLORS.accent : "transparent",
+                        color: isSelected ? "#FFFFFF" : isToday ? COLORS.accent : COLORS.mid,
+                        transition: "background 0.2s ease, color 0.2s ease",
                       }}
                     >
                       {DAY_LETTERS[i]}
@@ -733,8 +818,22 @@ function WeekView({ anchor, setAnchor, selected, setSelected, tasksByDate, toggl
             </div>
           </div>
 
-          <TaskListCard title="Tasks that day" tasks={selTasks} dateKeyStr={selKey} toggleTask={toggleTask} deleteTask={deleteTask} />
+          <TaskListCard
+            title="Tasks that day"
+            tasks={selTasks}
+            dateKeyStr={selKey}
+            toggleTask={toggleTask}
+            deleteTask={deleteTask}
+            lastAddedId={lastAddedId}
+          />
         </div>
+
+        <BottomTaskComposer
+          value={draft}
+          onChange={setDraft}
+          onSubmit={submitDraft}
+          placeholder="Add a new task..."
+        />
       </div>
     </AnimatedView>
   );
@@ -867,10 +966,12 @@ export default function App() {
   const [tasksByDate, setTasksByDate] = useState(seedData);
 
   function addTask(key, title) {
+    const id = `${Date.now()}-${Math.random()}`;
     setTasksByDate((prev) => ({
       ...prev,
-      [key]: [...(prev[key] || []), { id: `${Date.now()}-${Math.random()}`, title, done: false }],
+      [key]: [...(prev[key] || []), { id, title, done: false }],
     }));
+    return id;
   }
   function toggleTask(key, id) {
     setTasksByDate((prev) => ({
@@ -883,7 +984,7 @@ export default function App() {
   }
 
   return (
-    <div style={{ background: COLORS.bg, color: COLORS.hi, minHeight: "100dvh", fontFamily: "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
+    <div style={{ background: COLORS.bg, color: COLORS.hi, height: "100dvh", maxHeight: "100dvh", overflow: "hidden", fontFamily: "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
       <style>{GLOBAL_CSS}</style>
       {view === "day" ? (
         <DayView
@@ -909,6 +1010,7 @@ export default function App() {
           tasksByDate={tasksByDate}
           toggleTask={toggleTask}
           deleteTask={deleteTask}
+          addTask={addTask}
           onBack={() => setView("day")}
           onOpenMonth={() => setMonthOpen(true)}
         />
