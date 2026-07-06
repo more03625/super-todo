@@ -1,4 +1,15 @@
+from pathlib import Path
+
 from pydantic import computed_field
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+_BACKEND_DIR = Path(__file__).resolve().parents[2]
+
+_ENV_FILES = (
+    str(_BACKEND_DIR / ".env.development"),
+    str(_BACKEND_DIR / ".env.local"),
+)
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -8,21 +19,25 @@ class Settings(BaseSettings):
     )
 
     postgres_host: str = "localhost"
-    postgres_port: int = 5434
-    postgres_user: str = "supertodo"
-    postgres_password: str = "supertodo_dev"
-    postgres_db: str = "supertodo"
+    postgres_port: int = 5432
+    postgres_user: str = "postgres"
+    postgres_password: str = ""
+    postgres_db: str = "postgres"
 
-    database_url: str | None = None
+    DATABASE_URL: str | None = None
 
     @computed_field
     @property
-    def sqlalchemy_database_url(self) -> str:
-        if self.database_url:
-            return self.database_url
+    def database_url(self) -> str:
+        if self.DATABASE_URL:
+            return self.DATABASE_URL
 
         return (
-            f"postgresql+asyncpg://{self.postgres_user}:"
-            f"{self.postgres_password}@{self.postgres_host}:"
-            f"{self.postgres_port}/{self.postgres_db}"
+            f"postgresql+asyncpg://"
+            f"{self.postgres_user}:{self.postgres_password}"
+            f"@{self.postgres_host}:{self.postgres_port}"
+            f"/{self.postgres_db}"
         )
+
+
+settings = Settings()
