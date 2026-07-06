@@ -1,0 +1,16 @@
+# Netlify build settings for the Next.js frontend.
+# The app lives in frontend/, not the repo root — without `base`, Netlify
+# finds no package.json and publishes nothing (every path 404s).
+[build]
+  base = "frontend"
+  command = "npm run build"
+  # Relative to `base`. The Next.js runtime plugin transforms this into
+  # serverless functions + static assets; do NOT point it at a folder like
+  # `out` unless you switch to `output: 'export'`.
+  publish = ".next"
+
+# Netlify's Next.js runtime — handles App Router pages, route handlers,
+# and client-side navigation fallbacks. Auto-detected on new sites, but
+# pinned here so the deploy never regresses to a plain static publish.
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
