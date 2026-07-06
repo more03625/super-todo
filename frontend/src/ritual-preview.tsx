@@ -157,6 +157,12 @@ const GLOBAL_CSS = `
     to { opacity: 1; transform: translateY(0); }
   }
 
+  @keyframes ritualSpin { to { transform: rotate(360deg); } }
+
+  /* Immediate pressed feedback on tappable cards */
+  .tap-target { transition: transform 0.15s ease; }
+  .tap-target:active { transform: scale(0.98); }
+
   .composer-input::placeholder {
     color: ${COLORS.low};
   }
@@ -456,10 +462,11 @@ function TaskItem({ task, onToggle, onDelete, isNew = false }) {
           border: `1px solid ${COLORS.border}`,
           padding: "14px 16px",
           transform: `translateX(${dx}px)`,
-          transition: dragging ? "none" : "transform 0.25s cubic-bezier(.22,1,.36,1)",
+          transition: dragging ? "none" : "transform 0.25s cubic-bezier(.22,1,.36,1), opacity 0.2s",
           touchAction: "pan-y",
           cursor: "grab",
           userSelect: "none",
+          opacity: task.pending ? 0.6 : 1,
         }}
       >
         <button
@@ -663,7 +670,7 @@ function DayView({ date, tasksByDate, addTask, toggleTask, deleteTask, onOpenWee
 
         <div className="split">
           <div
-            className="card"
+            className="card tap-target"
             onClick={onOpenWeek}
             role="button"
             tabIndex={0}
@@ -774,32 +781,31 @@ function WeekView({ anchor, setAnchor, selected, setSelected, tasksByDate, toggl
               <button onClick={() => goWeek(-1)} style={{ color: COLORS.mid, fontSize: 20, cursor: "pointer", padding: "4px 8px" }}>
                 ‹
               </button>
-              <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, color: COLORS.mid }}>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, color: COLORS.mid }}>
                 This week
+                {isWeekLoading && (
+                  <span
+                    aria-label="Refreshing week"
+                    style={{
+                      width: 10,
+                      height: 10,
+                      borderRadius: "50%",
+                      border: `2px solid ${COLORS.border}`,
+                      borderTopColor: COLORS.accent,
+                      animation: "ritualSpin 0.7s linear infinite",
+                      flexShrink: 0,
+                    }}
+                  />
+                )}
               </span>
               <button onClick={() => goWeek(1)} style={{ color: COLORS.mid, fontSize: 20, cursor: "pointer", padding: "4px 8px" }}>
                 ›
               </button>
             </div>
 
-            {isWeekLoading ? (
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "28px 0" }}>
-                <div
-                  style={{
-                    width: mainRingSize,
-                    height: mainRingSize,
-                    borderRadius: "50%",
-                    border: `${mainStroke}px solid ${COLORS.border}`,
-                    borderTopColor: COLORS.accent,
-                    animation: "ritualSpin 0.7s linear infinite",
-                    flexShrink: 0,
-                  }}
-                />
-                <p style={{ marginTop: 16, fontSize: 13, color: COLORS.mid }}>Loading week…</p>
-              </div>
-            ) : (
-              <>
-                <div className="week-day-grid">
+            {/* Content stays mounted during background refreshes — only the
+                small header spinner indicates fetching. */}
+            <div className="week-day-grid">
                   {days.map((d, i) => {
                     const k = dateKey(d);
                     const { pct: dayPct } = progressFor(tasksByDate[k]);
@@ -837,12 +843,10 @@ function WeekView({ anchor, setAnchor, selected, setSelected, tasksByDate, toggl
                   })}
                 </div>
 
-                <div style={{ marginTop: 24, display: "flex", flexDirection: "column", alignItems: "center" }}>
-                  <Ring pct={pct} size={mainRingSize} stroke={mainStroke} label sublabel={total ? `${done}/${total} DONE` : "NO TASKS"} />
-                  <p style={{ marginTop: 16, fontSize: 14, color: COLORS.mid }}>{fmtWeekday(selected)}</p>
-                </div>
-              </>
-            )}
+            <div style={{ marginTop: 24, display: "flex", flexDirection: "column", alignItems: "center" }}>
+              <Ring pct={pct} size={mainRingSize} stroke={mainStroke} label sublabel={total ? `${done}/${total} DONE` : "NO TASKS"} />
+              <p style={{ marginTop: 16, fontSize: 14, color: COLORS.mid }}>{fmtWeekday(selected)}</p>
+            </div>
           </div>
 
           <TaskListCard
@@ -987,6 +991,11 @@ export default function App() {
   const router = useRouter();
   const { user } = useAuth();
 
+  // Preload the /week route chunk so tapping the card navigates instantly.
+  useEffect(() => {
+    router.prefetch("/week");
+  }, [router]);
+
   const weekStart = dateKey(weekDays(today)[0]);
   const weekEnd = dateKey(weekDays(today)[6]);
   const monthStart = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-01`;
@@ -1007,7 +1016,6 @@ export default function App() {
       {isLoading ? (
         <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>
           <div style={{ width: 32, height: 32, borderRadius: "50%", border: `2px solid ${COLORS.border}`, borderTopColor: COLORS.accent, animation: "ritualSpin 0.7s linear infinite" }} />
-          <style>{`@keyframes ritualSpin { to { transform: rotate(360deg); } }`}</style>
         </div>
       ) : (
         <>
@@ -1039,6 +1047,12 @@ export default function App() {
 export function WeekApp() {
   const today = new Date();
   const router = useRouter();
+
+  // Preload the home route chunk so the back button navigates instantly.
+  useEffect(() => {
+    router.prefetch("/");
+  }, [router]);
+
   const [anchor, setAnchor] = useState(today);
   const [selected, setSelected] = useState(today);
   const [monthOpen, setMonthOpen] = useState(false);
@@ -1059,7 +1073,6 @@ export function WeekApp() {
       {isLoading ? (
         <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>
           <div style={{ width: 32, height: 32, borderRadius: "50%", border: `2px solid ${COLORS.border}`, borderTopColor: COLORS.accent, animation: "ritualSpin 0.7s linear infinite" }} />
-          <style>{`@keyframes ritualSpin { to { transform: rotate(360deg); } }`}</style>
         </div>
       ) : (
         <>

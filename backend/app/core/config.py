@@ -29,8 +29,13 @@ class Settings(BaseSettings):
     jwt_refresh_token_expire_days: int = 7
 
     environment: str = "development"
-    frontend_url: str = "http://localhost:3003"
+    # Comma-separated list of allowed CORS origins.
+    frontend_url: str = "http://localhost:3003,http://localhost:3000"
     api_v1_prefix: str = "/api/v1"
+
+    @property
+    def cors_origins(self) -> list[str]:
+        return [origin.strip() for origin in self.frontend_url.split(",") if origin.strip()]
 
 
 settings = Settings()

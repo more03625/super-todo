@@ -1,3 +1,12 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# LOCAL spec (the default). All URLs point at localhost; a plain
+# `docker compose up --build` works on any local machine with zero setup.
+#
+# Production servers run the SAME command but select docker-compose.prod.yml
+# via a one-time root .env file:
+#     echo "COMPOSE_FILE=docker-compose.prod.yml" > .env
+# Docker Compose reads COMPOSE_FILE from .env automatically. See DEPLOY.md.
+# ─────────────────────────────────────────────────────────────────────────────
 services:
   postgres:
     image: postgres:16-alpine
@@ -28,6 +37,8 @@ services:
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
       DATABASE_URL: postgresql+asyncpg://supertodo:supertodo_dev@postgres:5432/supertodo
+      # Runtime var: comma-separated list of allowed CORS origins.
+      FRONTEND_URL: http://localhost:3003,http://localhost:3000
     env_file:
       - ./backend/.env.development
     depends_on:
@@ -40,6 +51,12 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      target: dev
+      args:
+        # BUILD-time var: `next build` bakes it into the JS bundle. The dev
+        # server used locally also reads it at runtime, but it is declared as a
+        # build arg here so both compose files handle it identically.
+        NEXT_PUBLIC_API_URL: http://localhost:8000/api/v1
     container_name: supertodo-frontend
     ports:
       - "3003:3003"

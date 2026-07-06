@@ -1,0 +1,77 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# PRODUCTION spec. Selected on the server via the root .env file (one time):
+#     COMPOSE_FILE=docker-compose.prod.yml
+#     SERVER_HOST=<public IP or domain, no scheme/port>
+#     JWT_SECRET=<long random string>
+#     POSTGRES_PASSWORD=<strong password>
+# After that, the same `docker compose up -d --build` command used locally
+# builds and runs the production stack. See DEPLOY.md for the full runbook.
+#
+# Before building, ALWAYS verify the right file is selected:
+#     docker compose config | grep -iE "url|origin"
+# ─────────────────────────────────────────────────────────────────────────────
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: supertodo-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: supertodo
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in the root .env}
+      POSTGRES_DB: supertodo
+    # No `ports:` on purpose — the database must only be reachable on the
+    # internal Docker network, never from the host or the public internet.
+    volumes:
+      # Named volume: data survives `docker compose down` and redeploys.
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U supertodo -d supertodo"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: supertodo-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    # No bind mounts in prod — code is baked into the image at build time.
+    environment:
+      ENVIRONMENT: production
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: supertodo
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in the root .env}
+      POSTGRES_DB: supertodo
+      DATABASE_URL: postgresql+asyncpg://supertodo:${POSTGRES_PASSWORD}@postgres:5432/supertodo
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in the root .env}
+      # Runtime var: comma-separated list of allowed CORS origins.
+      FRONTEND_URL: http://${SERVER_HOST:?Set SERVER_HOST in the root .env}:3003
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: prod
+      args:
+        # BUILD-time var: `next build` bakes this URL into the JS bundle.
+        # Changing it requires a rebuild — restarting the container is not
+        # enough.
+        NEXT_PUBLIC_API_URL: http://${SERVER_HOST:?Set SERVER_HOST in the root .env}:8000/api/v1
+    container_name: supertodo-frontend
+    restart: unless-stopped
+    ports:
+      - "3003:3003"
+    environment:
+      PORT: "3003"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
