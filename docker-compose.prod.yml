@@ -46,7 +46,7 @@ services:
       POSTGRES_USER: supertodo
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in the root .env}
       POSTGRES_DB: supertodo
-      DATABASE_URL: postgresql+asyncpg://supertodo:${POSTGRES_PASSWORD}@postgres:5432/supertodo
+      DATABASE_URL: postgresql+asyncpg://supertodo:${POSTGRES_PASSWORD}@postgres:5432/postgres
       JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in the root .env}
       # Runtime var: comma-separated list of allowed CORS origins.
       FRONTEND_URL: http://${SERVER_HOST:?Set SERVER_HOST in the root .env}:3003

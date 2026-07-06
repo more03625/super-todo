@@ -1,13 +1,4 @@
-from pathlib import Path
-
-from pydantic_settings import BaseSettings, SettingsConfigDict
-
-_BACKEND_DIR = Path(__file__).resolve().parents[2]
-_ENV_FILES: tuple[str, ...] = (
-    str(_BACKEND_DIR / ".env.development"),
-    str(_BACKEND_DIR / ".env.local"),  # optional overrides (gitignored)
-)
-
+from pydantic import computed_field
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -21,21 +12,17 @@ class Settings(BaseSettings):
     postgres_user: str = "supertodo"
     postgres_password: str = "supertodo_dev"
     postgres_db: str = "supertodo"
-    database_url: str = "postgresql+asyncpg://supertodo:supertodo_dev@localhost:5434/supertodo"
 
-    jwt_secret: str = "dev-secret"
-    jwt_algorithm: str = "HS256"
-    jwt_access_token_expire_minutes: int = 15
-    jwt_refresh_token_expire_days: int = 7
+    database_url: str | None = None
 
-    environment: str = "development"
-    # Comma-separated list of allowed CORS origins.
-    frontend_url: str = "http://localhost:3003,http://localhost:3000"
-    api_v1_prefix: str = "/api/v1"
-
+    @computed_field
     @property
-    def cors_origins(self) -> list[str]:
-        return [origin.strip() for origin in self.frontend_url.split(",") if origin.strip()]
+    def sqlalchemy_database_url(self) -> str:
+        if self.database_url:
+            return self.database_url
 
-
-settings = Settings()
+        return (
+            f"postgresql+asyncpg://{self.postgres_user}:"
+            f"{self.postgres_password}@{self.postgres_host}:"
+            f"{self.postgres_port}/{self.postgres_db}"
+        )
