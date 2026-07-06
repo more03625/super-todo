@@ -32,6 +32,8 @@ class TaskService:
             params.category_id,
             params.life_area_id,
             params.include_archived,
+            params.due_date_from,
+            params.due_date_to,
         )
         return [TaskResponse.model_validate(t) for t in items], pagination
 

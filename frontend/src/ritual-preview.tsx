@@ -232,6 +232,12 @@ function fmtWeekday(d) {
 function fmtShort(d) {
   return d.toLocaleDateString("en-US", { day: "numeric", month: "short" });
 }
+function fmtWeekRange(start, end) {
+  if (start.getFullYear() === end.getFullYear()) {
+    return `${fmtShort(start)} – ${fmtShort(end)} ${end.getFullYear()}`;
+  }
+  return `${fmtShort(start)} ${start.getFullYear()} – ${fmtShort(end)} ${end.getFullYear()}`;
+}
 function fmtMonthYear(d) {
   return d.toLocaleDateString("en-US", { month: "long", year: "numeric" });
 }
@@ -704,7 +710,7 @@ function DayView({ date, tasksByDate, addTask, toggleTask, deleteTask, onOpenWee
 }
 
 /* ---------------- Week View ---------------- */
-function WeekView({ anchor, setAnchor, selected, setSelected, tasksByDate, toggleTask, deleteTask, addTask, onBack, onOpenMonth }) {
+function WeekView({ anchor, setAnchor, selected, setSelected, tasksByDate, toggleTask, deleteTask, addTask, isWeekLoading, onBack, onOpenMonth }) {
   const days = weekDays(anchor);
   const today = new Date();
   const selKey = dateKey(selected);
@@ -751,7 +757,7 @@ function WeekView({ anchor, setAnchor, selected, setSelected, tasksByDate, toggl
             <BackIcon /> Today
           </button>
           <h1 style={{ fontSize: windowWidth < 380 ? 13 : 15, fontWeight: 700, color: COLORS.hi, margin: "0 8px", textAlign: "center" }}>
-            {fmtShort(days[0])} – {fmtShort(days[6])}
+            {fmtWeekRange(days[0], days[6])}
           </h1>
           <button
             onClick={onOpenMonth}
@@ -776,49 +782,67 @@ function WeekView({ anchor, setAnchor, selected, setSelected, tasksByDate, toggl
               </button>
             </div>
 
-            <div className="week-day-grid">
-              {days.map((d, i) => {
-                const k = dateKey(d);
-                const { pct: dayPct } = progressFor(tasksByDate[k]);
-                const isSelected = sameDay(d, selected);
-                const isToday = sameDay(d, today);
-                return (
-                  <button
-                    key={k}
-                    onClick={() => setSelected(d)}
-                    className="day-pill"
-                    style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 5, cursor: "pointer" }}
-                  >
-                    <span
-                      style={{
-                        width: 18,
-                        height: 18,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        borderRadius: "50%",
-                        fontSize: 10,
-                        fontWeight: isSelected ? 700 : isToday ? 700 : 500,
-                        background: isSelected ? COLORS.accent : "transparent",
-                        color: isSelected ? "#FFFFFF" : isToday ? COLORS.accent : COLORS.mid,
-                        transition: "background 0.2s ease, color 0.2s ease",
-                      }}
-                    >
-                      {DAY_LETTERS[i]}
-                    </span>
-                    {/* Wrap ring in a sized container so it scales with the column */}
-                    <div style={{ width: miniRingSize, height: miniRingSize, flexShrink: 0 }}>
-                      <Ring pct={dayPct} size={miniRingSize} stroke={miniStroke} showHead={false} />
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
+            {isWeekLoading ? (
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "28px 0" }}>
+                <div
+                  style={{
+                    width: mainRingSize,
+                    height: mainRingSize,
+                    borderRadius: "50%",
+                    border: `${mainStroke}px solid ${COLORS.border}`,
+                    borderTopColor: COLORS.accent,
+                    animation: "ritualSpin 0.7s linear infinite",
+                    flexShrink: 0,
+                  }}
+                />
+                <p style={{ marginTop: 16, fontSize: 13, color: COLORS.mid }}>Loading week…</p>
+              </div>
+            ) : (
+              <>
+                <div className="week-day-grid">
+                  {days.map((d, i) => {
+                    const k = dateKey(d);
+                    const { pct: dayPct } = progressFor(tasksByDate[k]);
+                    const isSelected = sameDay(d, selected);
+                    const isToday = sameDay(d, today);
+                    return (
+                      <button
+                        key={k}
+                        onClick={() => setSelected(d)}
+                        className="day-pill"
+                        style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 5, cursor: "pointer" }}
+                      >
+                        <span
+                          style={{
+                            width: 18,
+                            height: 18,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            borderRadius: "50%",
+                            fontSize: 10,
+                            fontWeight: isSelected ? 700 : isToday ? 700 : 500,
+                            background: isSelected ? COLORS.accent : "transparent",
+                            color: isSelected ? "#FFFFFF" : isToday ? COLORS.accent : COLORS.mid,
+                            transition: "background 0.2s ease, color 0.2s ease",
+                          }}
+                        >
+                          {DAY_LETTERS[i]}
+                        </span>
+                        <div style={{ width: miniRingSize, height: miniRingSize, flexShrink: 0 }}>
+                          <Ring pct={dayPct} size={miniRingSize} stroke={miniStroke} showHead={false} />
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
 
-            <div style={{ marginTop: 24, display: "flex", flexDirection: "column", alignItems: "center" }}>
-              <Ring pct={pct} size={mainRingSize} stroke={mainStroke} label sublabel={total ? `${done}/${total} DONE` : "NO TASKS"} />
-              <p style={{ marginTop: 16, fontSize: 14, color: COLORS.mid }}>{fmtWeekday(selected)}</p>
-            </div>
+                <div style={{ marginTop: 24, display: "flex", flexDirection: "column", alignItems: "center" }}>
+                  <Ring pct={pct} size={mainRingSize} stroke={mainStroke} label sublabel={total ? `${done}/${total} DONE` : "NO TASKS"} />
+                  <p style={{ marginTop: 16, fontSize: 14, color: COLORS.mid }}>{fmtWeekday(selected)}</p>
+                </div>
+              </>
+            )}
           </div>
 
           <TaskListCard
@@ -843,11 +867,10 @@ function WeekView({ anchor, setAnchor, selected, setSelected, tasksByDate, toggl
 }
 
 /* ---------------- Month Sheet ---------------- */
-function MonthSheet({ initial, tasksByDate, onClose, onSelectDate }) {
-  const [anchor, setAnchor] = useState(initial);
+function MonthSheet({ monthAnchor, onMonthAnchorChange, tasksByDate, isLoading, onClose, onSelectDate }) {
   const [visible, setVisible] = useState(false);
   const today = new Date();
-  const days = monthGrid(anchor);
+  const days = monthGrid(monthAnchor);
 
   useEffect(() => {
     const t = setTimeout(() => setVisible(true), 10);
@@ -890,46 +913,61 @@ function MonthSheet({ initial, tasksByDate, onClose, onSelectDate }) {
         <div style={{ width: 40, height: 4, borderRadius: 4, background: COLORS.borderStrong, margin: "0 auto 16px" }} />
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <button
-            onClick={() => setAnchor(new Date(anchor.getFullYear(), anchor.getMonth() - 1, 1))}
+            onClick={() => onMonthAnchorChange(new Date(monthAnchor.getFullYear(), monthAnchor.getMonth() - 1, 1))}
             style={{ width: 36, height: 36, borderRadius: 8, background: COLORS.card, border: `1px solid ${COLORS.border}`, color: COLORS.hi, fontSize: 18, cursor: "pointer" }}
           >
             ‹
           </button>
-          <h2 style={{ fontSize: 17, fontWeight: 700, color: COLORS.hi, margin: 0 }}>{fmtMonthYear(anchor)}</h2>
+          <h2 style={{ fontSize: 17, fontWeight: 700, color: COLORS.hi, margin: 0 }}>{fmtMonthYear(monthAnchor)}</h2>
           <button
-            onClick={() => setAnchor(new Date(anchor.getFullYear(), anchor.getMonth() + 1, 1))}
+            onClick={() => onMonthAnchorChange(new Date(monthAnchor.getFullYear(), monthAnchor.getMonth() + 1, 1))}
             style={{ width: 36, height: 36, borderRadius: 8, background: COLORS.card, border: `1px solid ${COLORS.border}`, color: COLORS.hi, fontSize: 18, cursor: "pointer" }}
           >
             ›
           </button>
         </div>
 
-        <div style={{ marginTop: 24, display: "grid", gridTemplateColumns: "repeat(7, 1fr)", rowGap: 16, textAlign: "center" }}>
-          {DAY_LETTERS.map((l, i) => (
-            <span key={i} style={{ fontSize: 11, fontWeight: 500, color: COLORS.mid }}>
-              {l}
-            </span>
-          ))}
-          {days.map((d) => {
-            const k = dateKey(d);
-            const { pct } = progressFor(tasksByDate[k]);
-            const inMonth = sameMonth(d, anchor);
-            const isToday = sameDay(d, today);
-            return (
-              <button
-                key={k}
-                onClick={() => {
-                  onSelectDate(d);
-                  close();
-                }}
-                style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, cursor: "pointer", opacity: inMonth ? 1 : 0.3 }}
-              >
-                <Ring pct={pct} size={36} stroke={6} showHead={false} />
-                <span style={{ fontSize: 11, color: isToday ? COLORS.accent : COLORS.mid, fontWeight: isToday ? 700 : 400 }}>{d.getDate()}</span>
-              </button>
-            );
-          })}
-        </div>
+        {isLoading ? (
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: 180, marginTop: 16 }}>
+            <div
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: "50%",
+                border: `2px solid ${COLORS.border}`,
+                borderTopColor: COLORS.accent,
+                animation: "ritualSpin 0.7s linear infinite",
+              }}
+            />
+          </div>
+        ) : (
+          <div style={{ marginTop: 24, display: "grid", gridTemplateColumns: "repeat(7, 1fr)", rowGap: 16, textAlign: "center" }}>
+            {DAY_LETTERS.map((l, i) => (
+              <span key={i} style={{ fontSize: 11, fontWeight: 500, color: COLORS.mid }}>
+                {l}
+              </span>
+            ))}
+            {days.map((d) => {
+              const k = dateKey(d);
+              const { pct } = progressFor(tasksByDate[k]);
+              const inMonth = sameMonth(d, monthAnchor);
+              const isToday = sameDay(d, today);
+              return (
+                <button
+                  key={k}
+                  onClick={() => {
+                    onSelectDate(d);
+                    close();
+                  }}
+                  style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, cursor: "pointer", opacity: inMonth ? 1 : 0.3 }}
+                >
+                  <Ring pct={pct} size={36} stroke={6} showHead={false} />
+                  <span style={{ fontSize: 11, color: isToday ? COLORS.accent : COLORS.mid, fontWeight: isToday ? 700 : 400 }}>{d.getDate()}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
     </>
   );
@@ -948,7 +986,18 @@ export default function App() {
   const today = new Date();
   const router = useRouter();
   const { user } = useAuth();
-  const { tasksByDate, isLoading, isError, refetch, addTask, toggleTask, deleteTask } = useRitualTasks();
+
+  const weekStart = dateKey(weekDays(today)[0]);
+  const weekEnd = dateKey(weekDays(today)[6]);
+  const monthStart = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-01`;
+  const monthEnd = dateKey(new Date(today.getFullYear(), today.getMonth() + 1, 0));
+
+  const { tasksByDate, isLoading, isError, refetch, addTask, toggleTask, deleteTask } = useRitualTasks({
+    weekStart,
+    weekEnd,
+    monthStart,
+    monthEnd,
+  });
 
   const initials = userInitials(user);
 
@@ -990,10 +1039,19 @@ export default function App() {
 export function WeekApp() {
   const today = new Date();
   const router = useRouter();
-  const { tasksByDate, isLoading, isError, refetch, addTask, toggleTask, deleteTask } = useRitualTasks();
   const [anchor, setAnchor] = useState(today);
   const [selected, setSelected] = useState(today);
   const [monthOpen, setMonthOpen] = useState(false);
+  const [monthAnchor, setMonthAnchor] = useState(today);
+
+  const anchorWeekDays = weekDays(anchor);
+  const weekStart = dateKey(anchorWeekDays[0]);
+  const weekEnd = dateKey(anchorWeekDays[6]);
+  const monthStart = `${monthAnchor.getFullYear()}-${String(monthAnchor.getMonth() + 1).padStart(2, "0")}-01`;
+  const monthEnd = dateKey(new Date(monthAnchor.getFullYear(), monthAnchor.getMonth() + 1, 0));
+
+  const { tasksByDate, isLoading, isWeekLoading, isMonthLoading, isError, refetch, addTask, toggleTask, deleteTask } =
+    useRitualTasks({ weekStart, weekEnd, monthStart, monthEnd });
 
   return (
     <div style={{ background: COLORS.bg, color: COLORS.hi, height: "100dvh", maxHeight: "100dvh", overflow: "hidden", fontFamily: "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
@@ -1022,13 +1080,16 @@ export function WeekApp() {
             toggleTask={toggleTask}
             deleteTask={deleteTask}
             addTask={addTask}
+            isWeekLoading={isWeekLoading}
             onBack={() => router.push("/")}
             onOpenMonth={() => setMonthOpen(true)}
           />
           {monthOpen && (
             <MonthSheet
-              initial={anchor}
+              monthAnchor={monthAnchor}
+              onMonthAnchorChange={setMonthAnchor}
               tasksByDate={tasksByDate}
+              isLoading={isMonthLoading}
               onClose={() => setMonthOpen(false)}
               onSelectDate={(d) => {
                 setAnchor(d);

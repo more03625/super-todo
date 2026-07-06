@@ -1,3 +1,4 @@
+from datetime import date
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
@@ -26,13 +27,15 @@ async def list_tasks(
     category_id: UUID | None = None,
     life_area_id: UUID | None = None,
     include_archived: bool = False,
+    due_date_from: date | None = None,
+    due_date_to: date | None = None,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     params = TaskFilterParams(
         page=page, limit=limit, sort_by=sort_by, sort_order=sort_order, search=search,
         status=status, priority=priority, category_id=category_id, life_area_id=life_area_id,
-        include_archived=include_archived,
+        include_archived=include_archived, due_date_from=due_date_from, due_date_to=due_date_to,
     )
     items, pagination = await TaskService(db).list_tasks(user, params)
     return ResponseHandler.success_with_pagination(

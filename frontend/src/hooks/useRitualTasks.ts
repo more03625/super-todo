@@ -35,41 +35,94 @@ export function groupTasksByDate(tasks: Task[]): TasksByDate {
   return map;
 }
 
-async function fetchAllTasks(): Promise<Task[]> {
-  const params = new URLSearchParams({ page: '1', limit: '100', sort_by: 'created_at', sort_order: 'desc' });
-  const res = await apiClient.get(`/tasks?${params}`);
+async function fetchTasksForRange(
+  from: string,
+  to: string,
+  signal: AbortSignal,
+): Promise<Task[]> {
+  const params = new URLSearchParams({
+    page: '1',
+    limit: '100',
+    sort_by: 'due_date',
+    sort_order: 'asc',
+    due_date_from: from,
+    due_date_to: to,
+  });
+  const res = await apiClient.get(`/tasks?${params}`, { signal });
   const data = res.data.data as PaginatedResponse<Task>;
   return data.items;
 }
 
-export function useRitualTasks() {
+interface UseRitualTasksParams {
+  weekStart: string;
+  weekEnd: string;
+  monthStart: string;
+  monthEnd: string;
+}
+
+export function useRitualTasks({ weekStart, weekEnd, monthStart, monthEnd }: UseRitualTasksParams) {
   const qc = useQueryClient();
 
-  const { data: tasks = [], isLoading, isError, refetch } = useQuery({
-    queryKey: ['tasks'],
-    queryFn: fetchAllTasks,
+  const weekQuery = useQuery({
+    queryKey: ['tasks', 'week', weekStart, weekEnd],
+    queryFn: ({ signal }) => fetchTasksForRange(weekStart, weekEnd, signal),
+    enabled: Boolean(weekStart && weekEnd),
   });
 
-  const tasksByDate = useMemo(() => groupTasksByDate(tasks), [tasks]);
+  const monthQuery = useQuery({
+    queryKey: ['tasks', 'month', monthStart, monthEnd],
+    queryFn: ({ signal }) => fetchTasksForRange(monthStart, monthEnd, signal),
+    enabled: Boolean(monthStart && monthEnd),
+  });
 
-  const invalidate = () => qc.invalidateQueries({ queryKey: ['tasks'] });
+  const tasksByDate = useMemo(() => {
+    const weekTasks = weekQuery.data ?? [];
+    const monthTasks = monthQuery.data ?? [];
+
+    // Deduplicate by id before grouping — week and month ranges can overlap
+    const seen = new Set<string>();
+    const merged: Task[] = [];
+    for (const t of [...weekTasks, ...monthTasks]) {
+      if (!seen.has(t.id)) {
+        seen.add(t.id);
+        merged.push(t);
+      }
+    }
+    return groupTasksByDate(merged);
+  }, [weekQuery.data, monthQuery.data]);
+
+  const invalidateAll = () => {
+    qc.invalidateQueries({ queryKey: ['tasks', 'week'] });
+    qc.invalidateQueries({ queryKey: ['tasks', 'month'] });
+  };
 
   const createMutation = useMutation({
     mutationFn: ({ dateKey, title }: { dateKey: string; title: string }) =>
       apiPost<Task>('/tasks', { title, due_date: dateKey }),
-    onSuccess: invalidate,
+    onSuccess: invalidateAll,
   });
 
   const toggleMutation = useMutation({
     mutationFn: ({ id, done }: { id: string; done: boolean }) =>
       apiPut<Task>(`/tasks/${id}`, { status: done ? 'pending' : 'completed' }),
-    onSuccess: invalidate,
+    onSuccess: invalidateAll,
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => apiDelete(`/tasks/${id}`),
-    onSuccess: invalidate,
+    onSuccess: invalidateAll,
   });
+
+  const allTasks = useMemo(() => {
+    const weekTasks = weekQuery.data ?? [];
+    const monthTasks = monthQuery.data ?? [];
+    const seen = new Set<string>();
+    const merged: Task[] = [];
+    for (const t of [...weekTasks, ...monthTasks]) {
+      if (!seen.has(t.id)) { seen.add(t.id); merged.push(t); }
+    }
+    return merged;
+  }, [weekQuery.data, monthQuery.data]);
 
   async function addTask(dateKey: string, title: string): Promise<string> {
     const task = await createMutation.mutateAsync({ dateKey, title });
@@ -77,7 +130,7 @@ export function useRitualTasks() {
   }
 
   function toggleTask(_dateKey: string, id: string) {
-    const task = tasks.find((t) => t.id === id);
+    const task = allTasks.find((t) => t.id === id);
     if (!task) return;
     toggleMutation.mutate({ id, done: task.status === 'completed' });
   }
@@ -88,9 +141,14 @@ export function useRitualTasks() {
 
   return {
     tasksByDate,
-    isLoading,
-    isError,
-    refetch,
+    isLoading: weekQuery.isLoading && monthQuery.isLoading,
+    isWeekLoading: weekQuery.isFetching,
+    isMonthLoading: monthQuery.isFetching,
+    isError: weekQuery.isError || monthQuery.isError,
+    refetch: () => {
+      weekQuery.refetch();
+      monthQuery.refetch();
+    },
     addTask,
     toggleTask,
     deleteTask,

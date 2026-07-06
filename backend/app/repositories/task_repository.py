@@ -1,7 +1,7 @@
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import Date, and_, cast, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Task, TaskEvent, TaskStatus
@@ -31,11 +31,25 @@ class TaskRepository:
         category_id: UUID | None = None,
         life_area_id: UUID | None = None,
         include_archived: bool = False,
+        due_date_from: date | None = None,
+        due_date_to: date | None = None,
     ) -> tuple[list[Task], dict[str, int]]:
         query = select(Task).where(Task.is_deleted.is_(False))
         extra = {"status": status, "priority": priority, "category_id": category_id, "life_area_id": life_area_id}
         if not include_archived:
             extra["is_archived"] = False
+
+        if due_date_from is not None and due_date_to is not None:
+            query = query.where(
+                or_(
+                    and_(Task.due_date >= due_date_from, Task.due_date <= due_date_to),
+                    and_(
+                        Task.due_date.is_(None),
+                        cast(Task.created_at, Date) >= due_date_from,
+                        cast(Task.created_at, Date) <= due_date_to,
+                    ),
+                )
+            )
 
         paginated, count_q = apply_pagination_query(
             query, Task, page, limit, sort_by, sort_order, search, ["title", "description"], user_id, extra_filters=extra

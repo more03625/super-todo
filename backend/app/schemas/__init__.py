@@ -168,6 +168,8 @@ class TaskFilterParams(BaseModel):
     category_id: UUID | None = None
     life_area_id: UUID | None = None
     include_archived: bool = False
+    due_date_from: date | None = None
+    due_date_to: date | None = None
 
 
 # Dashboard & Analytics
