@@ -9,7 +9,19 @@ export const apiClient = axios.create({
   timeout: 8000,
 });
 
+let pendingRequests = 0;
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('beforeunload', (event) => {
+    if (pendingRequests > 0) {
+      event.preventDefault();
+      event.returnValue = '';
+    }
+  });
+}
+
 apiClient.interceptors.request.use((config) => {
+  pendingRequests++;
   if (typeof window !== 'undefined') {
     const token = localStorage.getItem('access_token');
     if (token) {
@@ -20,8 +32,12 @@ apiClient.interceptors.request.use((config) => {
 });
 
 apiClient.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    pendingRequests--;
+    return response;
+  },
   async (error: AxiosError<OpenApiErrorResponse>) => {
+    pendingRequests--;
     const original = error.config;
     if (error.response?.status === 401 && original && !original.url?.includes('/auth/')) {
       const refresh = localStorage.getItem('refresh_token');
@@ -43,6 +59,15 @@ apiClient.interceptors.response.use(
     return Promise.reject(error);
   },
 );
+
+export async function pingServer(timeoutMs = 20000): Promise<boolean> {
+  try {
+    await axios.get(`${API_URL}/ping`, { timeout: timeoutMs });
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 export function getErrorMessage(error: unknown): string {
   if (axios.isAxiosError(error)) {

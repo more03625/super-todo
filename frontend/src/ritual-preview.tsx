@@ -34,34 +34,30 @@ const GLOBAL_CSS = `
     height: 100%;
     display: flex;
     flex-direction: column;
-    overflow: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
 
   .page-header {
     flex-shrink: 0;
   }
 
-  /* Mobile: flex column with gap so cards always have breathing room */
+  /* Mobile: flex column with gap so cards always have breathing room.
+     Content defines the height — the page (.app-shell) scrolls, not the cards. */
   .split {
     display: flex;
     flex-direction: column;
     gap: 16px;
-    flex: 1;
-    min-height: 0;
-    overflow: hidden;
   }
   .split > .card {
     flex-shrink: 0;
   }
 
-  /* Tasks panel: header + scrollable list only */
+  /* Tasks panel: grows to fit all tasks, no inner scroller */
   .task-list-card {
     display: flex;
     flex-direction: column;
-    min-height: 0;
-    overflow: hidden;
     padding: 0;
-    flex: 1;
   }
   .task-list-card .task-list-header {
     flex-shrink: 0;
@@ -69,17 +65,17 @@ const GLOBAL_CSS = `
     margin: 0;
   }
   .task-list-scroll {
-    flex: 1;
-    min-height: 0;
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    -webkit-overflow-scrolling: touch;
     padding: 0 16px 8px;
   }
 
-  /* Page-level docked composer */
+  /* Composer pinned to the bottom of the scrolling page */
   .bottom-composer {
     flex-shrink: 0;
+    position: sticky;
+    bottom: 0;
+    z-index: 10;
+    background: ${COLORS.bg};
+    margin-top: auto;
     padding: 12px 0 max(24px, env(safe-area-inset-bottom, 0px));
   }
   .bottom-composer-field {
@@ -101,7 +97,6 @@ const GLOBAL_CSS = `
     min-height: 0;
     display: flex;
     flex-direction: column;
-    overflow: hidden;
   }
 
   .card {
@@ -172,13 +167,9 @@ const GLOBAL_CSS = `
     .split {
       display: grid;
       grid-template-columns: minmax(420px, 480px) 1fr;
-      grid-template-rows: minmax(0, 1fr);
       gap: 32px;
-      align-items: stretch;
+      align-items: start;
     }
-    .split > .card { align-self: start; }
-    /* Tasks card fills the full column height so ~6-8 tasks are visible before scrolling */
-    .task-list-card { height: 100%; min-height: 0; }
   }
   @media (min-width: 1400px) {
     .app-shell { max-width: 1440px; padding: 56px 72px 0; }
@@ -582,7 +573,8 @@ function TaskListCard({ title, tasks, dateKeyStr, toggleTask, deleteTask, lastAd
 
   useEffect(() => {
     if (!listRef.current) return;
-    listRef.current.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" });
+    // The page (.app-shell) scrolls, not the list — bring the newest task into view
+    listRef.current.lastElementChild?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [lastAddedId, tasks?.length]);
 
   return (
@@ -998,14 +990,11 @@ export default function App() {
 
   const weekStart = dateKey(weekDays(today)[0]);
   const weekEnd = dateKey(weekDays(today)[6]);
-  const monthStart = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-01`;
-  const monthEnd = dateKey(new Date(today.getFullYear(), today.getMonth() + 1, 0));
 
+  // No month range: the Today page has no month calendar, so skip that fetch
   const { tasksByDate, isLoading, isError, refetch, addTask, toggleTask, deleteTask } = useRitualTasks({
     weekStart,
     weekEnd,
-    monthStart,
-    monthEnd,
   });
 
   const initials = userInitials(user);

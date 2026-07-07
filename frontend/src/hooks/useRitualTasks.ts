@@ -214,8 +214,9 @@ function findCachedTask(qc: QueryClient, id: string): Task | undefined {
 interface UseRitualTasksParams {
   weekStart: string;
   weekEnd: string;
-  monthStart: string;
-  monthEnd: string;
+  /** Omit on pages without a month calendar — skips the month-range fetch. */
+  monthStart?: string;
+  monthEnd?: string;
 }
 
 export function useRitualTasks({ weekStart, weekEnd, monthStart, monthEnd }: UseRitualTasksParams) {
@@ -231,10 +232,11 @@ export function useRitualTasks({ weekStart, weekEnd, monthStart, monthEnd }: Use
     placeholderData: keepPreviousData,
   });
 
+  const monthEnabled = Boolean(monthStart && monthEnd);
   const monthQuery = useQuery({
     queryKey: ['tasks', 'month', monthStart, monthEnd],
-    queryFn: ({ signal }) => fetchTasksForRange(monthStart, monthEnd, signal),
-    enabled: Boolean(monthStart && monthEnd),
+    queryFn: ({ signal }) => fetchTasksForRange(monthStart!, monthEnd!, signal),
+    enabled: monthEnabled,
     placeholderData: keepPreviousData,
   });
 
@@ -373,7 +375,8 @@ export function useRitualTasks({ weekStart, weekEnd, monthStart, monthEnd }: Use
     isError: weekQuery.isError || monthQuery.isError,
     refetch: () => {
       weekQuery.refetch();
-      monthQuery.refetch();
+      // refetch() ignores `enabled` — don't fire a fetch for a disabled month query
+      if (monthEnabled) monthQuery.refetch();
     },
     addTask,
     toggleTask,
