@@ -11,7 +11,16 @@ import { apiClient, apiDelete, apiPost, apiPut, getErrorMessage } from '@/servic
 import { useToast } from '@/contexts/ToastContext';
 import type { PaginatedResponse, Task, TaskStatus } from '@/types';
 
-export type RitualTask = { id: string; title: string; done: boolean; pending: boolean };
+export type RitualTask = {
+  id: string;
+  /** Real task id (differs from `id` for projected recurrence occurrences). */
+  sourceId: string;
+  title: string;
+  done: boolean;
+  pending: boolean;
+  /** Projected future occurrence of a recurring task — display-only. */
+  virtual: boolean;
+};
 
 export type TasksByDate = Record<string, RitualTask[]>;
 
@@ -32,28 +41,141 @@ function newTempId(): string {
 function toRitualTask(task: Task): RitualTask {
   return {
     id: task.id,
+    sourceId: task.id,
     title: task.title,
     done: task.status === 'completed',
     pending: isTempId(task.id),
+    virtual: false,
   };
 }
 
-/** Resolve which calendar day a task belongs to (due_date preferred, else created_at local). */
-export function taskDateKey(task: Task): string {
-  if (task.due_date) return task.due_date;
-  const d = new Date(task.created_at);
+/* ---------------- local-date helpers (never UTC-parse date keys) ---------------- */
+
+function fmtKey(d: Date): string {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
 }
 
-export function groupTasksByDate(tasks: Task[]): TasksByDate {
-  const map: TasksByDate = {};
+function parseKey(key: string): Date {
+  const [y, m, d] = key.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
+function addDaysLocal(d: Date, n: number): Date {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
+}
+
+function addMonthsClamped(d: Date, n: number): Date {
+  const total = d.getFullYear() * 12 + d.getMonth() + n;
+  const y = Math.floor(total / 12);
+  const m = total % 12;
+  const lastDay = new Date(y, m + 1, 0).getDate();
+  return new Date(y, m, Math.min(d.getDate(), lastDay));
+}
+
+function weekStartMonday(d: Date): Date {
+  return addDaysLocal(d, -((d.getDay() + 6) % 7));
+}
+
+/**
+ * Next occurrence strictly after `base` — mirrors backend
+ * app/utils/recurrence.py (bit 0 of the weekday mask = Monday).
+ */
+function nextOccurrence(base: Date, unit: string, interval: number | null, mask: number | null): Date {
+  const n = Math.max(1, interval ?? 1);
+  if (unit === 'day') return addDaysLocal(base, n);
+  if (unit === 'week') {
+    if (!mask) return addDaysLocal(base, 7 * n);
+    const baseWeek = weekStartMonday(base);
+    let candidate = addDaysLocal(base, 1);
+    for (let i = 0; i < n * 7 + 7; i++) {
+      const weeksApart = Math.round((weekStartMonday(candidate).getTime() - baseWeek.getTime()) / (7 * 86400000));
+      const bit = (candidate.getDay() + 6) % 7;
+      if (weeksApart % n === 0 && (mask & (1 << bit)) !== 0) return candidate;
+      candidate = addDaysLocal(candidate, 1);
+    }
+    return addDaysLocal(base, 7 * n);
+  }
+  if (unit === 'month') return addMonthsClamped(base, n);
+  return addMonthsClamped(base, 12 * n);
+}
+
+/** Resolve which calendar day a task belongs to (due_date preferred, else created_at local). */
+export function taskDateKey(task: Task): string {
+  if (task.due_date) return task.due_date;
+  return fmtKey(new Date(task.created_at));
+}
+
+/** Manual order first (position asc, nulls last), then creation order. */
+function byPosition(a: Task, b: Task): number {
+  const pa = a.position ?? Number.MAX_SAFE_INTEGER;
+  const pb = b.position ?? Number.MAX_SAFE_INTEGER;
+  if (pa !== pb) return pa - pb;
+  return a.created_at < b.created_at ? -1 : a.created_at > b.created_at ? 1 : 0;
+}
+
+/**
+ * Expand tasks onto calendar days:
+ * - base day (due date, else creation day)
+ * - pinned My Day date ("copied" into that day's list)
+ * - every day from creation until the due date (deadline countdown)
+ * - projected future occurrences of recurring tasks (virtual, display-only)
+ */
+export function groupTasksByDate(tasks: Task[], rangeStart?: string, rangeEnd?: string): TasksByDate {
+  const grouped = new Map<string, Map<string, { task: Task; virtual: boolean }>>();
+
+  function push(key: string, task: Task, virtual: boolean) {
+    let day = grouped.get(key);
+    if (!day) {
+      day = new Map();
+      grouped.set(key, day);
+    }
+    const existing = day.get(task.id);
+    // A real entry always wins over a projected one for the same day.
+    if (!existing || (existing.virtual && !virtual)) day.set(task.id, { task, virtual });
+  }
+
   for (const task of tasks) {
-    const key = taskDateKey(task);
-    if (!map[key]) map[key] = [];
-    map[key].push(toRitualTask(task));
+    const baseKey = taskDateKey(task);
+    push(baseKey, task, false);
+
+    if (task.my_day_date && task.my_day_date !== baseKey) {
+      push(task.my_day_date, task, false);
+    }
+
+    if (task.due_date) {
+      const createdKey = fmtKey(new Date(task.created_at));
+      if (createdKey < task.due_date) {
+        const startKey = rangeStart && rangeStart > createdKey ? rangeStart : createdKey;
+        const endKey = rangeEnd && rangeEnd < task.due_date ? rangeEnd : task.due_date;
+        for (let d = parseKey(startKey); fmtKey(d) <= endKey; d = addDaysLocal(d, 1)) {
+          push(fmtKey(d), task, false);
+        }
+      }
+    }
+
+    if (task.recurrence_unit && task.status !== 'completed' && rangeEnd) {
+      let cursor = parseKey(baseKey);
+      for (let guard = 0; guard < 120; guard++) {
+        cursor = nextOccurrence(cursor, task.recurrence_unit, task.recurrence_interval, task.recurrence_weekdays);
+        const key = fmtKey(cursor);
+        if (key > rangeEnd) break;
+        push(key, task, true);
+      }
+    }
+  }
+
+  const map: TasksByDate = {};
+  for (const [key, day] of grouped) {
+    map[key] = Array.from(day.values())
+      .sort((a, b) => byPosition(a.task, b.task))
+      .map(({ task, virtual }) =>
+        virtual
+          ? { ...toRitualTask(task), id: `${task.id}::${key}`, done: false, virtual: true }
+          : toRitualTask(task),
+      );
   }
   return map;
 }
@@ -148,6 +270,11 @@ function optimisticTask(id: string, title: string, dueDate: string): Task {
     completed_at: null,
     is_archived: false,
     is_deleted: false,
+    position: null,
+    my_day_date: null,
+    recurrence_unit: null,
+    recurrence_interval: null,
+    recurrence_weekdays: null,
     created_at: now,
     updated_at: now,
   };
@@ -251,8 +378,11 @@ export function useRitualTasks({ weekStart, weekEnd, monthStart, monthEnd }: Use
         merged.push(t);
       }
     }
-    return groupTasksByDate(merged);
-  }, [weekQuery.data, monthQuery.data]);
+    // Expand spans/recurrence across the union of both fetched ranges.
+    const rangeStart = weekStart < monthStart ? weekStart : monthStart;
+    const rangeEnd = weekEnd > monthEnd ? weekEnd : monthEnd;
+    return groupTasksByDate(merged, rangeStart, rangeEnd);
+  }, [weekQuery.data, monthQuery.data, weekStart, weekEnd, monthStart, monthEnd]);
 
   function cancelTaskQueries(): void {
     // Abort in-flight fetches so a stale response can't overwrite optimistic state.
@@ -298,6 +428,44 @@ export function useRitualTasks({ weekStart, weekEnd, monthStart, monthEnd }: Use
     onError: (error, _vars, context) => {
       if (context?.removed.length) restoreRemoved(qc, context.removed);
       showToast(`Couldn't delete task — ${getErrorMessage(error)}`, 'error');
+    },
+    onSettled: settleInvalidate,
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, patch }: { id: string; patch: Partial<Task> }) =>
+      serialized(id, () => apiPut<Task>(`/tasks/${id}`, patch)),
+    onMutate: ({ id, patch }): { prev?: Task } => {
+      cancelTaskQueries();
+      const prev = findCachedTask(qc, id);
+      patchTaskInCaches(qc, id, patch);
+      return { prev };
+    },
+    onError: (error, { id }, context) => {
+      const othersInFlight =
+        qc.isMutating({
+          predicate: (m) => (m.state.variables as { id?: string } | undefined)?.id === id,
+        }) > 1;
+      if (context?.prev && !othersInFlight) {
+        patchTaskInCaches(qc, id, context.prev);
+      }
+      showToast(`Couldn't update task — ${getErrorMessage(error)}`, 'error');
+    },
+    onSettled: settleInvalidate,
+  });
+
+  const reorderMutation = useMutation({
+    mutationFn: ({ taskIds }: { taskIds: string[]; prevPositions: Map<string, number | null> }) =>
+      apiPost('/tasks/reorder', { task_ids: taskIds }),
+    onMutate: ({ taskIds }) => {
+      cancelTaskQueries();
+      taskIds.forEach((id, index) => patchTaskInCaches(qc, id, { position: index }));
+    },
+    onError: (error, { taskIds, prevPositions }) => {
+      for (const id of taskIds) {
+        patchTaskInCaches(qc, id, { position: prevPositions.get(id) ?? null });
+      }
+      showToast(`Couldn't reorder tasks — ${getErrorMessage(error)}`, 'error');
     },
     onSettled: settleInvalidate,
   });
@@ -353,6 +521,33 @@ export function useRitualTasks({ weekStart, weekEnd, monthStart, monthEnd }: Use
     toggleMutation.mutate({ id: realId, done: nextDone });
   }
 
+  function updateTask(id: string, patch: Partial<Task>) {
+    const realId = idMap.get(id) ?? id;
+    if (isTempId(realId)) {
+      // Still saving — just update the cache; the detail page can't be opened
+      // for temp ids, so no server sync is queued for these edits.
+      cancelTaskQueries();
+      patchTaskInCaches(qc, realId, patch);
+      return;
+    }
+    updateMutation.mutate({ id: realId, patch });
+  }
+
+  /** Persist a new manual order for one day's tasks. Temp ids are patched
+   *  locally but excluded from the server payload (they re-sort on refetch);
+   *  projected occurrences (ids with '::') are display-only and skipped. */
+  function reorderTasks(orderedIds: string[]) {
+    const resolved = orderedIds.filter((id) => !id.includes('::')).map((id) => idMap.get(id) ?? id);
+    const prevPositions = new Map<string, number | null>();
+    resolved.forEach((id, index) => {
+      prevPositions.set(id, findCachedTask(qc, id)?.position ?? null);
+      if (isTempId(id)) patchTaskInCaches(qc, id, { position: index });
+    });
+    const taskIds = resolved.filter((id) => !isTempId(id));
+    if (taskIds.length === 0) return;
+    reorderMutation.mutate({ taskIds, prevPositions });
+  }
+
   function deleteTask(_dateKey: string, id: string) {
     const realId = idMap.get(id) ?? id;
     if (isTempId(realId)) {
@@ -378,6 +573,8 @@ export function useRitualTasks({ weekStart, weekEnd, monthStart, monthEnd }: Use
     addTask,
     toggleTask,
     deleteTask,
+    updateTask,
+    reorderTasks,
     getErrorMessage,
     isMutating: createMutation.isPending || toggleMutation.isPending || deleteMutation.isPending,
   };

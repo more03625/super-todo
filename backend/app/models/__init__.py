@@ -28,6 +28,13 @@ class TaskStatus(str, enum.Enum):
     CANCELLED = "cancelled"
 
 
+class RecurrenceUnit(str, enum.Enum):
+    DAY = "day"
+    WEEK = "week"
+    MONTH = "month"
+    YEAR = "year"
+
+
 def _pg_enum(enum_class: type[enum.Enum], pg_name: str) -> Enum:
     """Map Python enums to PostgreSQL enum values (lowercase), not member names."""
     return Enum(
@@ -102,16 +109,37 @@ class Task(TimestampMixin, Base):
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     is_archived: Mapped[bool] = mapped_column(Boolean, default=False)
     is_deleted: Mapped[bool] = mapped_column(Boolean, default=False)
+    position: Mapped[int | None] = mapped_column(Integer)
+    my_day_date: Mapped[date | None] = mapped_column(Date)
+    recurrence_unit: Mapped[RecurrenceUnit | None] = mapped_column(_pg_enum(RecurrenceUnit, "recurrenceunit"))
+    recurrence_interval: Mapped[int | None] = mapped_column(Integer)
+    # Bitmask of weekdays for weekly recurrence: bit 0 = Monday ... bit 6 = Sunday
+    recurrence_weekdays: Mapped[int | None] = mapped_column(Integer)
 
     user: Mapped["User"] = relationship(back_populates="tasks")
     category: Mapped["Category | None"] = relationship(back_populates="tasks")
     life_area: Mapped["LifeArea | None"] = relationship(back_populates="tasks")
     events: Mapped[list["TaskEvent"]] = relationship(back_populates="task")
+    steps: Mapped[list["TaskStep"]] = relationship(back_populates="task", order_by="TaskStep.position")
 
     __table_args__ = (
         Index("ix_tasks_user_id_status", "user_id", "status"),
         Index("ix_tasks_user_id", "user_id"),
+        Index("ix_tasks_user_position", "user_id", "position"),
     )
+
+
+class TaskStep(TimestampMixin, Base):
+    __tablename__ = "task_steps"
+
+    task_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("tasks.id"), nullable=False)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    is_completed: Mapped[bool] = mapped_column(Boolean, default=False)
+    position: Mapped[int] = mapped_column(Integer, default=0)
+
+    task: Mapped["Task"] = relationship(back_populates="steps")
+
+    __table_args__ = (Index("ix_task_steps_task_id", "task_id"),)
 
 
 class TaskEvent(TimestampMixin, Base):

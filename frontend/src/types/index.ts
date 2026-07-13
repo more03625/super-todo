@@ -30,6 +30,7 @@ export interface PaginatedResponse<T> {
 
 export type TaskPriority = 'low' | 'medium' | 'high' | 'urgent';
 export type TaskStatus = 'pending' | 'in_progress' | 'completed' | 'cancelled';
+export type RecurrenceUnit = 'day' | 'week' | 'month' | 'year';
 
 export interface User {
   id: string;
@@ -74,6 +75,22 @@ export interface Task {
   completed_at: string | null;
   is_archived: boolean;
   is_deleted: boolean;
+  position: number | null;
+  my_day_date: string | null;
+  recurrence_unit: RecurrenceUnit | null;
+  recurrence_interval: number | null;
+  /** Bitmask of weekdays for weekly recurrence: bit 0 = Monday ... bit 6 = Sunday. */
+  recurrence_weekdays: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TaskStep {
+  id: string;
+  task_id: string;
+  title: string;
+  is_completed: boolean;
+  position: number;
   created_at: string;
   updated_at: string;
 }

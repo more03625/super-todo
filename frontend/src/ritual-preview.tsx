@@ -318,6 +318,16 @@ const ChevronRightIcon = () => (
     <path d="M9 6L15 12L9 18" stroke={COLORS.mid} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 );
+const GripIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+    <circle cx="9" cy="6" r="1.6" fill={COLORS.low} />
+    <circle cx="15" cy="6" r="1.6" fill={COLORS.low} />
+    <circle cx="9" cy="12" r="1.6" fill={COLORS.low} />
+    <circle cx="15" cy="12" r="1.6" fill={COLORS.low} />
+    <circle cx="9" cy="18" r="1.6" fill={COLORS.low} />
+    <circle cx="15" cy="18" r="1.6" fill={COLORS.low} />
+  </svg>
+);
 
 /* ---------------- Ring ---------------- */
 function Ring({ pct, size = 220, stroke = 26, showHead = true, label, sublabel, onClick }) {
@@ -408,19 +418,23 @@ function Ring({ pct, size = 220, stroke = 26, showHead = true, label, sublabel, 
 }
 
 /* ---------------- TaskItem (swipe to delete) ---------------- */
-function TaskItem({ task, onToggle, onDelete, isNew = false }) {
+function TaskItem({ task, onToggle, onDelete, onOpen, isNew = false, rowRef, rowStyle, dragHandle }) {
   const [dx, setDx] = useState(0);
   const [dragging, setDragging] = useState(false);
   const startX = useRef(null);
+  const movedRef = useRef(false);
 
   function onDown(e) {
+    if (task.virtual) return; // projected occurrences can't be swipe-deleted
     startX.current = e.clientX ?? e.touches?.[0]?.clientX;
+    movedRef.current = false;
     setDragging(true);
   }
   function onMove(e) {
     if (!dragging || startX.current == null) return;
     const x = e.clientX ?? e.touches?.[0]?.clientX;
     const diff = x - startX.current;
+    if (Math.abs(diff) > 5) movedRef.current = true;
     setDx(Math.min(0, Math.max(-100, diff)));
   }
   function onUp() {
@@ -430,8 +444,16 @@ function TaskItem({ task, onToggle, onDelete, isNew = false }) {
     else setDx(0);
   }
 
+  function openDetail() {
+    // A swipe that ends over the title must not navigate; neither should
+    // tasks still saving (temp ids have no server route yet). Projected
+    // occurrences open their source task's detail page.
+    if (movedRef.current || task.pending || !onOpen) return;
+    onOpen(task.sourceId || task.id);
+  }
+
   return (
-    <div className={isNew ? "task-enter" : undefined} style={{ position: "relative", marginBottom: 8 }}>
+    <div ref={rowRef} className={isNew ? "task-enter" : undefined} style={{ position: "relative", marginBottom: 8, ...rowStyle }}>
       <div
         style={{
           position: "absolute",
@@ -470,36 +492,83 @@ function TaskItem({ task, onToggle, onDelete, isNew = false }) {
         }}
       >
         <button
-          onClick={onToggle}
-          aria-label={task.done ? "Mark incomplete" : "Mark complete"}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (!task.virtual) onToggle();
+          }}
+          aria-label={task.virtual ? "Upcoming occurrence" : task.done ? "Mark incomplete" : "Mark complete"}
+          aria-disabled={task.virtual || undefined}
           style={{
             width: 24,
             height: 24,
             borderRadius: "50%",
-            border: `1.5px solid ${task.done ? COLORS.mint : COLORS.borderStrong}`,
+            border: `1.5px ${task.virtual ? "dashed" : "solid"} ${task.done ? COLORS.mint : COLORS.borderStrong}`,
             background: task.done ? COLORS.mint : "transparent",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             flexShrink: 0,
             transition: "all 0.2s",
-            cursor: "pointer",
+            cursor: task.virtual ? "default" : "pointer",
           }}
         >
           {task.done && <CheckIcon />}
         </button>
         <span
+          onClick={openDetail}
           style={{
             flex: 1,
             fontSize: 15,
-            color: task.done ? COLORS.low : COLORS.hi,
+            color: task.done ? COLORS.low : task.virtual ? COLORS.mid : COLORS.hi,
             textDecoration: task.done ? "line-through" : "none",
             transition: "color 0.2s",
             textAlign: "left",
+            cursor: onOpen && !task.pending ? "pointer" : "inherit",
           }}
         >
           {task.title}
         </span>
+        {task.virtual && (
+          <span aria-label="Repeats" title="Upcoming occurrence" style={{ fontSize: 13, color: COLORS.low, flexShrink: 0 }}>
+            ↻
+          </span>
+        )}
+        {dragHandle && (
+          <button
+            aria-label="Reorder task"
+            onPointerDown={(e) => {
+              // Keep the vertical drag gesture out of the card's swipe handler.
+              e.stopPropagation();
+              dragHandle.onPointerDown(e);
+            }}
+            onPointerMove={(e) => {
+              e.stopPropagation();
+              dragHandle.onPointerMove(e);
+            }}
+            onPointerUp={(e) => {
+              e.stopPropagation();
+              dragHandle.onPointerUp(e);
+            }}
+            onPointerCancel={(e) => {
+              e.stopPropagation();
+              dragHandle.onPointerCancel(e);
+            }}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: 28,
+              height: 28,
+              marginRight: -6,
+              borderRadius: 8,
+              flexShrink: 0,
+              cursor: "grab",
+              touchAction: "none",
+            }}
+          >
+            <GripIcon />
+          </button>
+        )}
       </div>
     </div>
   );
@@ -571,19 +640,104 @@ function BottomTaskComposer({ value, onChange, onSubmit, placeholder = "Add a ne
 
 /* ---------------- progress helper ---------------- */
 function progressFor(tasks) {
-  if (!tasks || tasks.length === 0) return { done: 0, total: 0, pct: 0 };
-  const done = tasks.filter((t) => t.done).length;
-  return { done, total: tasks.length, pct: Math.round((done / tasks.length) * 100) };
+  // Projected future occurrences are display-only and can't be completed,
+  // so they don't count toward the day's ring.
+  const real = tasks?.filter((t) => !t.virtual) ?? [];
+  if (real.length === 0) return { done: 0, total: 0, pct: 0 };
+  const done = real.filter((t) => t.done).length;
+  return { done, total: real.length, pct: Math.round((done / real.length) * 100) };
 }
 
 /* ---------------- Task list card ---------------- */
-function TaskListCard({ title, tasks, dateKeyStr, toggleTask, deleteTask, lastAddedId }) {
+function TaskListCard({ title, tasks, dateKeyStr, toggleTask, deleteTask, reorderTasks, lastAddedId }) {
+  const router = useRouter();
   const listRef = useRef(null);
+  const rowRefs = useRef(new Map());
+  // { id, startIndex, hoverIndex, dy, height } while a handle-drag is active
+  const [drag, setDrag] = useState(null);
+  const dragRef = useRef(null);
+  dragRef.current = drag;
+  const dragMeta = useRef(null);
 
   useEffect(() => {
-    if (!listRef.current) return;
+    if (!listRef.current || dragRef.current) return;
     listRef.current.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" });
   }, [lastAddedId, tasks?.length]);
+
+  function measuredHeights() {
+    return tasks.map((t) => {
+      const el = rowRefs.current.get(t.id);
+      return el ? el.offsetHeight + 8 : 60;
+    });
+  }
+
+  // Walk row heights (rows can wrap to two lines) instead of assuming a
+  // uniform row height; crossing half of a neighbour swaps with it.
+  function hoverIndexFor(startIndex, dy, heights) {
+    let idx = startIndex;
+    let remaining = dy;
+    if (dy < 0) {
+      while (idx > 0 && -remaining > heights[idx - 1] / 2) {
+        remaining += heights[idx - 1];
+        idx -= 1;
+      }
+    } else {
+      while (idx < heights.length - 1 && remaining > heights[idx + 1] / 2) {
+        remaining -= heights[idx + 1];
+        idx += 1;
+      }
+    }
+    return idx;
+  }
+
+  function onHandleDown(e, id, index) {
+    if (!reorderTasks || !tasks || tasks.length < 2) return;
+    e.preventDefault();
+    const heights = measuredHeights();
+    dragMeta.current = { id, startY: e.clientY, heights, startIndex: index };
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+    setDrag({ id, startIndex: index, hoverIndex: index, dy: 0, height: heights[index] });
+  }
+
+  function onHandleMove(e) {
+    const meta = dragMeta.current;
+    if (!meta) return;
+    const dy = e.clientY - meta.startY;
+    const hoverIndex = hoverIndexFor(meta.startIndex, dy, meta.heights);
+    setDrag((d) => (d ? { ...d, dy, hoverIndex } : d));
+  }
+
+  function onHandleUp() {
+    const meta = dragMeta.current;
+    const d = dragRef.current;
+    dragMeta.current = null;
+    setDrag(null);
+    if (!meta || !d || !tasks || d.hoverIndex === meta.startIndex) return;
+    const ids = tasks.map((t) => t.id);
+    ids.splice(meta.startIndex, 1);
+    ids.splice(d.hoverIndex, 0, meta.id);
+    reorderTasks(ids);
+  }
+
+  function rowStyleFor(id, index) {
+    if (!drag) return undefined;
+    if (id === drag.id) {
+      return {
+        transform: `translateY(${drag.dy}px)`,
+        zIndex: 10,
+        transition: "none",
+        boxShadow: "0 8px 24px rgba(22,24,29,0.16)",
+        borderRadius: 16,
+      };
+    }
+    let shift = 0;
+    if (drag.startIndex < drag.hoverIndex && index > drag.startIndex && index <= drag.hoverIndex) {
+      shift = -drag.height;
+    } else if (drag.startIndex > drag.hoverIndex && index >= drag.hoverIndex && index < drag.startIndex) {
+      shift = drag.height;
+    }
+    return { transform: `translateY(${shift}px)`, transition: "transform 0.18s ease" };
+  }
 
   return (
     <div className="card-outline task-list-card">
@@ -591,13 +745,28 @@ function TaskListCard({ title, tasks, dateKeyStr, toggleTask, deleteTask, lastAd
         {title}
       </h2>
       <div className="task-list-scroll" ref={listRef}>
-        {tasks?.map((t) => (
+        {tasks?.map((t, i) => (
           <TaskItem
             key={t.id}
             task={t}
             isNew={t.id === lastAddedId}
             onToggle={() => toggleTask(dateKeyStr, t.id)}
             onDelete={() => deleteTask(dateKeyStr, t.id)}
+            onOpen={(id) => router.push(`/tasks/${id}`)}
+            rowRef={(el) => {
+              if (el) rowRefs.current.set(t.id, el);
+              else rowRefs.current.delete(t.id);
+            }}
+            rowStyle={rowStyleFor(t.id, i)}
+            dragHandle={
+              !t.virtual &&
+              reorderTasks && {
+                onPointerDown: (e) => onHandleDown(e, t.id, i),
+                onPointerMove: onHandleMove,
+                onPointerUp: onHandleUp,
+                onPointerCancel: onHandleUp,
+              }
+            }
           />
         ))}
       </div>
@@ -619,7 +788,7 @@ function AnimatedView({ children }) {
 }
 
 /* ---------------- Day View ---------------- */
-function DayView({ date, tasksByDate, addTask, toggleTask, deleteTask, onOpenWeek, userInitials = "?" }) {
+function DayView({ date, tasksByDate, addTask, toggleTask, deleteTask, reorderTasks, onOpenWeek, userInitials = "?" }) {
   const key = dateKey(date);
   const tasks = tasksByDate[key];
   const { done, total, pct } = progressFor(tasks);
@@ -701,6 +870,7 @@ function DayView({ date, tasksByDate, addTask, toggleTask, deleteTask, onOpenWee
             dateKeyStr={key}
             toggleTask={toggleTask}
             deleteTask={deleteTask}
+            reorderTasks={reorderTasks}
             lastAddedId={lastAddedId}
           />
         </div>
@@ -717,7 +887,7 @@ function DayView({ date, tasksByDate, addTask, toggleTask, deleteTask, onOpenWee
 }
 
 /* ---------------- Week View ---------------- */
-function WeekView({ anchor, setAnchor, selected, setSelected, tasksByDate, toggleTask, deleteTask, addTask, isWeekLoading, onBack, onOpenMonth }) {
+function WeekView({ anchor, setAnchor, selected, setSelected, tasksByDate, toggleTask, deleteTask, addTask, reorderTasks, isWeekLoading, onBack, onOpenMonth }) {
   const days = weekDays(anchor);
   const today = new Date();
   const selKey = dateKey(selected);
@@ -855,6 +1025,7 @@ function WeekView({ anchor, setAnchor, selected, setSelected, tasksByDate, toggl
             dateKeyStr={selKey}
             toggleTask={toggleTask}
             deleteTask={deleteTask}
+            reorderTasks={reorderTasks}
             lastAddedId={lastAddedId}
           />
         </div>
@@ -1001,7 +1172,7 @@ export default function App() {
   const monthStart = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-01`;
   const monthEnd = dateKey(new Date(today.getFullYear(), today.getMonth() + 1, 0));
 
-  const { tasksByDate, isLoading, isError, refetch, addTask, toggleTask, deleteTask } = useRitualTasks({
+  const { tasksByDate, isLoading, isError, refetch, addTask, toggleTask, deleteTask, reorderTasks } = useRitualTasks({
     weekStart,
     weekEnd,
     monthStart,
@@ -1034,6 +1205,7 @@ export default function App() {
             addTask={addTask}
             toggleTask={toggleTask}
             deleteTask={deleteTask}
+            reorderTasks={reorderTasks}
             userInitials={initials}
             onOpenWeek={() => router.push("/week")}
           />
@@ -1064,7 +1236,7 @@ export function WeekApp() {
   const monthStart = `${monthAnchor.getFullYear()}-${String(monthAnchor.getMonth() + 1).padStart(2, "0")}-01`;
   const monthEnd = dateKey(new Date(monthAnchor.getFullYear(), monthAnchor.getMonth() + 1, 0));
 
-  const { tasksByDate, isLoading, isWeekLoading, isMonthLoading, isError, refetch, addTask, toggleTask, deleteTask } =
+  const { tasksByDate, isLoading, isWeekLoading, isMonthLoading, isError, refetch, addTask, toggleTask, deleteTask, reorderTasks } =
     useRitualTasks({ weekStart, weekEnd, monthStart, monthEnd });
 
   return (
@@ -1093,6 +1265,7 @@ export function WeekApp() {
             toggleTask={toggleTask}
             deleteTask={deleteTask}
             addTask={addTask}
+            reorderTasks={reorderTasks}
             isWeekLoading={isWeekLoading}
             onBack={() => router.push("/")}
             onOpenMonth={() => setMonthOpen(true)}

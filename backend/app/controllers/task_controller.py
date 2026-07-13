@@ -9,7 +9,7 @@ from app.common.interfaces.openapi_success_response import PaginationMeta
 from app.database.session import get_db
 from app.dependencies.auth import get_current_user
 from app.models import TaskPriority, TaskStatus, User
-from app.schemas import TaskCreate, TaskFilterParams, TaskUpdate
+from app.schemas import TaskCreate, TaskFilterParams, TaskReorderRequest, TaskStepCreate, TaskStepUpdate, TaskUpdate
 from app.services.task_service import TaskService
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
@@ -29,6 +29,7 @@ async def list_tasks(
     include_archived: bool = False,
     due_date_from: date | None = None,
     due_date_to: date | None = None,
+    my_day_date: date | None = None,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -36,12 +37,21 @@ async def list_tasks(
         page=page, limit=limit, sort_by=sort_by, sort_order=sort_order, search=search,
         status=status, priority=priority, category_id=category_id, life_area_id=life_area_id,
         include_archived=include_archived, due_date_from=due_date_from, due_date_to=due_date_to,
+        my_day_date=my_day_date,
     )
     items, pagination = await TaskService(db).list_tasks(user, params)
     return ResponseHandler.success_with_pagination(
         [i.model_dump(mode="json") for i in items],
         PaginationMeta(**pagination),
     )
+
+
+@router.post("/reorder")
+async def reorder_tasks(
+    data: TaskReorderRequest, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
+):
+    await TaskService(db).reorder_tasks(user, data.task_ids)
+    return ResponseHandler.success({"reordered": len(data.task_ids)})
 
 
 @router.get("/{task_id}")
@@ -67,4 +77,38 @@ async def update_task(
 @router.delete("/{task_id}")
 async def delete_task(task_id: UUID, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     await TaskService(db).delete_task(user, task_id)
+    return ResponseHandler.deleted()
+
+
+@router.get("/{task_id}/steps")
+async def list_task_steps(task_id: UUID, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    items = await TaskService(db).list_steps(user, task_id)
+    return ResponseHandler.success([i.model_dump(mode="json") for i in items])
+
+
+@router.post("/{task_id}/steps")
+async def create_task_step(
+    task_id: UUID, data: TaskStepCreate, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
+):
+    item = await TaskService(db).create_step(user, task_id, data)
+    return ResponseHandler.created(item.model_dump(mode="json"))
+
+
+@router.put("/{task_id}/steps/{step_id}")
+async def update_task_step(
+    task_id: UUID,
+    step_id: UUID,
+    data: TaskStepUpdate,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    item = await TaskService(db).update_step(user, task_id, step_id, data)
+    return ResponseHandler.updated(item.model_dump(mode="json"))
+
+
+@router.delete("/{task_id}/steps/{step_id}")
+async def delete_task_step(
+    task_id: UUID, step_id: UUID, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
+):
+    await TaskService(db).delete_step(user, task_id, step_id)
     return ResponseHandler.deleted()

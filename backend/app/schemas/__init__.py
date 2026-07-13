@@ -1,10 +1,10 @@
 from typing import Generic, TypeVar
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
 from uuid import UUID
 from datetime import date, datetime
 
-from app.models import TaskPriority, TaskStatus, UserRole
+from app.models import RecurrenceUnit, TaskPriority, TaskStatus, UserRole
 
 T = TypeVar("T")
 
@@ -116,7 +116,21 @@ class LifeAreaResponse(ORMModel):
 
 
 # Task
-class TaskCreate(BaseModel):
+class RecurrenceFieldsMixin(BaseModel):
+    recurrence_unit: RecurrenceUnit | None = None
+    recurrence_interval: int | None = Field(default=None, ge=1)
+    recurrence_weekdays: int | None = Field(default=None, ge=1, le=127)
+
+    @model_validator(mode="after")
+    def _validate_recurrence(self):
+        if self.recurrence_weekdays is not None and self.recurrence_unit != RecurrenceUnit.WEEK:
+            raise ValueError("recurrence_weekdays is only valid when recurrence_unit is 'week'")
+        if self.recurrence_interval is not None and self.recurrence_unit is None:
+            raise ValueError("recurrence_interval requires recurrence_unit")
+        return self
+
+
+class TaskCreate(RecurrenceFieldsMixin):
     title: str = Field(min_length=1, max_length=255)
     description: str | None = None
     priority: TaskPriority = TaskPriority.MEDIUM
@@ -124,9 +138,10 @@ class TaskCreate(BaseModel):
     life_area_id: UUID | None = None
     estimated_minutes: int | None = None
     due_date: date | None = None
+    my_day_date: date | None = None
 
 
-class TaskUpdate(BaseModel):
+class TaskUpdate(RecurrenceFieldsMixin):
     title: str | None = None
     description: str | None = None
     priority: TaskPriority | None = None
@@ -137,6 +152,7 @@ class TaskUpdate(BaseModel):
     actual_minutes: int | None = None
     due_date: date | None = None
     is_archived: bool | None = None
+    my_day_date: date | None = None
 
 
 class TaskResponse(ORMModel):
@@ -153,6 +169,36 @@ class TaskResponse(ORMModel):
     completed_at: datetime | None
     is_archived: bool
     is_deleted: bool
+    position: int | None
+    my_day_date: date | None
+    recurrence_unit: RecurrenceUnit | None
+    recurrence_interval: int | None
+    recurrence_weekdays: int | None
+    created_at: datetime
+    updated_at: datetime
+
+
+class TaskReorderRequest(BaseModel):
+    task_ids: list[UUID] = Field(min_length=1)
+
+
+# Task Steps
+class TaskStepCreate(BaseModel):
+    title: str = Field(min_length=1, max_length=255)
+
+
+class TaskStepUpdate(BaseModel):
+    title: str | None = Field(default=None, min_length=1, max_length=255)
+    is_completed: bool | None = None
+    position: int | None = None
+
+
+class TaskStepResponse(ORMModel):
+    id: UUID
+    task_id: UUID
+    title: str
+    is_completed: bool
+    position: int
     created_at: datetime
     updated_at: datetime
 
@@ -170,6 +216,7 @@ class TaskFilterParams(BaseModel):
     include_archived: bool = False
     due_date_from: date | None = None
     due_date_to: date | None = None
+    my_day_date: date | None = None
 
 
 # Dashboard & Analytics
