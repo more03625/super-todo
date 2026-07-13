@@ -5,10 +5,12 @@ from app.controllers import (
     auth_controller,
     category_controller,
     life_area_controller,
+    ping_controller,
     task_controller,
 )
 
 api_router = APIRouter()
+api_router.include_router(ping_controller.router)
 api_router.include_router(auth_controller.router)
 api_router.include_router(category_controller.router)
 api_router.include_router(life_area_controller.router)

@@ -2,11 +2,13 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from sqlalchemy import text
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api.router import api_router
 from app.common.interfaces.openapi_error_response import ErrorDetail, OpenApiErrorResponse
 from app.core.config import settings
+from app.database.session import engine
 from app.middleware.scheduler import setup_scheduler
 
 
@@ -57,7 +59,14 @@ def create_app() -> FastAPI:
 
     @app.get("/health")
     async def health():
-        return {"status": "ok"}
+        # SELECT 1 forces a real connection so pinging this endpoint wakes a
+        # paused/sleeping database (e.g. free-tier Supabase/Render/Neon).
+        try:
+            async with engine.connect() as conn:
+                await conn.execute(text("SELECT 1"))
+        except Exception as exc:  # pragma: no cover - depends on DB availability
+            return JSONResponse(status_code=503, content={"status": "degraded", "database": f"error: {exc.__class__.__name__}"})
+        return {"status": "ok", "database": "ok"}
 
     return app
 
