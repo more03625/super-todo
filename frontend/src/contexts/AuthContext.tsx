@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiGet } from '@/services/api-client';
 import type { User } from '@/types';
@@ -18,6 +18,7 @@ const AuthContext = createContext<AuthContextType | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const bootstrapped = useRef(false);
   const router = useRouter();
 
   const refreshUser = async () => {
@@ -30,6 +31,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
+    // React StrictMode re-runs mount effects in dev — fetch /auth/me only once
+    if (bootstrapped.current) return;
+    bootstrapped.current = true;
     const token = localStorage.getItem('access_token');
     if (token) {
       refreshUser().finally(() => setLoading(false));
