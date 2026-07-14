@@ -380,9 +380,10 @@ export function useRitualTasks({ weekStart, weekEnd, monthStart, monthEnd }: Use
         merged.push(t);
       }
     }
-    // Expand spans/recurrence across the union of both fetched ranges.
-    const rangeStart = weekStart < monthStart ? weekStart : monthStart;
-    const rangeEnd = weekEnd > monthEnd ? weekEnd : monthEnd;
+    // Expand spans/recurrence across the union of both fetched ranges
+    // (month range is optional on pages without a month calendar).
+    const rangeStart = monthStart && monthStart < weekStart ? monthStart : weekStart;
+    const rangeEnd = monthEnd && monthEnd > weekEnd ? monthEnd : weekEnd;
     return groupTasksByDate(merged, rangeStart, rangeEnd);
   }, [weekQuery.data, monthQuery.data, weekStart, weekEnd, monthStart, monthEnd]);
 
