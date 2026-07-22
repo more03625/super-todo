@@ -7,6 +7,7 @@ import { ArrowLeft, Calendar, Sun, Trash2 } from 'lucide-react';
 import { apiDelete, apiGet, apiPut, getErrorMessage } from '@/services/api-client';
 import { useToast } from '@/contexts/ToastContext';
 import { useAutosave } from '@/hooks/useAutosave';
+import { taskDetailKey } from '@/hooks/useRitualTasks';
 import type { Task } from '@/types';
 import { COLORS, cardStyle, localDateKey } from './theme';
 import { RepeatPicker, type RecurrenceValue } from './RepeatPicker';
@@ -26,7 +27,7 @@ export function TaskDetailView({ taskId }: { taskId: string }) {
   const router = useRouter();
   const qc = useQueryClient();
   const { showToast } = useToast();
-  const taskKey = ['task', taskId];
+  const taskKey = taskDetailKey(taskId);
 
   const taskQuery = useQuery({
     queryKey: taskKey,

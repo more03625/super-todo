@@ -31,6 +31,22 @@ apiClient.interceptors.request.use((config) => {
   return config;
 });
 
+/** In-flight refresh call, shared by all concurrent 401s so only one
+ *  /auth/refresh request ever goes out at a time — the backend rotates
+ *  refresh tokens, so a second concurrent call would consume an
+ *  already-used token and fail. */
+let refreshPromise: Promise<string> | null = null;
+
+async function refreshAccessToken(): Promise<string> {
+  const refresh = localStorage.getItem('refresh_token');
+  if (!refresh) throw new Error('No refresh token');
+  const res = await axios.post(`${API_URL}/auth/refresh`, { refresh_token: refresh });
+  const data = res.data as OpenApiSuccessResponse<{ access_token: string; refresh_token: string }>;
+  localStorage.setItem('access_token', data.data.access_token);
+  localStorage.setItem('refresh_token', data.data.refresh_token);
+  return data.data.access_token;
+}
+
 apiClient.interceptors.response.use(
   (response) => {
     pendingRequests--;
@@ -40,20 +56,19 @@ apiClient.interceptors.response.use(
     pendingRequests--;
     const original = error.config;
     if (error.response?.status === 401 && original && !original.url?.includes('/auth/')) {
-      const refresh = localStorage.getItem('refresh_token');
-      if (refresh) {
-        try {
-          const res = await axios.post(`${API_URL}/auth/refresh`, { refresh_token: refresh });
-          const data = res.data as OpenApiSuccessResponse<{ access_token: string; refresh_token: string }>;
-          localStorage.setItem('access_token', data.data.access_token);
-          localStorage.setItem('refresh_token', data.data.refresh_token);
-          original.headers.Authorization = `Bearer ${data.data.access_token}`;
-          return apiClient(original);
-        } catch {
-          localStorage.removeItem('access_token');
-          localStorage.removeItem('refresh_token');
-          if (typeof window !== 'undefined') window.location.href = '/login';
+      try {
+        if (!refreshPromise) {
+          refreshPromise = refreshAccessToken().finally(() => {
+            refreshPromise = null;
+          });
         }
+        const accessToken = await refreshPromise;
+        original.headers.Authorization = `Bearer ${accessToken}`;
+        return apiClient(original);
+      } catch {
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('refresh_token');
+        if (typeof window !== 'undefined') window.location.href = '/login';
       }
     }
     return Promise.reject(error);

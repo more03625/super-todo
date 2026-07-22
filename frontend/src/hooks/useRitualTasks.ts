@@ -7,9 +7,22 @@ import {
   type QueryClient,
   type QueryKey,
 } from '@tanstack/react-query';
-import { apiClient, apiDelete, apiPost, apiPut, getErrorMessage } from '@/services/api-client';
+import { apiClient, apiDelete, apiGet, apiPost, apiPut, getErrorMessage } from '@/services/api-client';
 import { useToast } from '@/contexts/ToastContext';
-import type { PaginatedResponse, Task, TaskStatus } from '@/types';
+import type { PaginatedResponse, Task, TaskStatus, TaskStep } from '@/types';
+
+/** Shared with TaskDetailView/StepsList so a background prefetch always
+ *  lands in the exact cache slot the detail page reads from. */
+export const taskDetailKey = (id: string) => ['task', id] as const;
+export const taskStepsKey = (id: string) => ['task', id, 'steps'] as const;
+
+/** Warms the task-detail cache in the background so opening the detail
+ *  page renders instantly instead of showing a loading spinner. */
+export function prefetchTaskDetail(qc: QueryClient, id: string): void {
+  if (isTempId(id)) return; // no server route yet — still saving
+  void qc.prefetchQuery({ queryKey: taskDetailKey(id), queryFn: () => apiGet<Task>(`/tasks/${id}`) });
+  void qc.prefetchQuery({ queryKey: taskStepsKey(id), queryFn: () => apiGet<TaskStep[]>(`/tasks/${id}/steps`) });
+}
 
 export type RitualTask = {
   id: string;
@@ -145,7 +158,12 @@ export function groupTasksByDate(tasks: Task[], rangeStart?: string, rangeEnd?: 
       push(task.my_day_date, task, false);
     }
 
-    if (task.due_date) {
+    // Recurring tasks are single-day occurrences, not deadline countdowns —
+    // their future occurrences are handled by the projection block below, so
+    // they must skip the span-fill (otherwise a freshly spawned next
+    // occurrence, created "now" with tomorrow's due date, spans back onto
+    // today and appears as a duplicate right next to the just-completed one).
+    if (task.due_date && !task.recurrence_unit) {
       const createdKey = fmtKey(new Date(task.created_at));
       if (createdKey < task.due_date) {
         const startKey = rangeStart && rangeStart > createdKey ? rangeStart : createdKey;
@@ -357,6 +375,10 @@ export function useRitualTasks({ weekStart, weekEnd, monthStart, monthEnd }: Use
     // Paging to another week keeps showing the previous data (with an inline
     // indicator) instead of unmounting to a spinner.
     placeholderData: keepPreviousData,
+    // The UI already has a manual Retry action on failure; the global
+    // default retry:1 was silently firing a second request before the error
+    // (and that button) ever showed up.
+    retry: false,
   });
 
   const monthEnabled = Boolean(monthStart && monthEnd);
@@ -365,6 +387,7 @@ export function useRitualTasks({ weekStart, weekEnd, monthStart, monthEnd }: Use
     queryFn: ({ signal }) => fetchTasksForRange(monthStart!, monthEnd!, signal),
     enabled: monthEnabled,
     placeholderData: keepPreviousData,
+    retry: false,
   });
 
   const tasksByDate = useMemo(() => {

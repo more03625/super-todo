@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, X } from 'lucide-react';
 import { apiDelete, apiGet, apiPost, apiPut, getErrorMessage } from '@/services/api-client';
 import { useToast } from '@/contexts/ToastContext';
+import { taskStepsKey } from '@/hooks/useRitualTasks';
 import type { TaskStep } from '@/types';
 import { COLORS, cardStyle } from './theme';
 
@@ -12,7 +13,7 @@ export function StepsList({ taskId }: { taskId: string }) {
   const qc = useQueryClient();
   const { showToast } = useToast();
   const [draft, setDraft] = useState('');
-  const stepsKey = ['task', taskId, 'steps'];
+  const stepsKey = taskStepsKey(taskId);
 
   const stepsQuery = useQuery({
     queryKey: stepsKey,

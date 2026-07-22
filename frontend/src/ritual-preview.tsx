@@ -1,8 +1,9 @@
 // @ts-nocheck
 import React, { useState, useEffect, useRef, useId } from "react";
 import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
-import { useRitualTasks } from "@/hooks/useRitualTasks";
+import { useRitualTasks, prefetchTaskDetail } from "@/hooks/useRitualTasks";
 
 /* ---------------- design tokens ---------------- */
 const COLORS = {
@@ -642,6 +643,7 @@ function progressFor(tasks) {
 /* ---------------- Task list card ---------------- */
 function TaskListCard({ title, tasks, dateKeyStr, toggleTask, deleteTask, reorderTasks, lastAddedId }) {
   const router = useRouter();
+  const qc = useQueryClient();
   const listRef = useRef(null);
   const rowRefs = useRef(new Map());
   // { id, startIndex, hoverIndex, dy, height } while a handle-drag is active
@@ -654,6 +656,17 @@ function TaskListCard({ title, tasks, dateKeyStr, toggleTask, deleteTask, reorde
     if (!listRef.current || dragRef.current) return;
     listRef.current.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" });
   }, [lastAddedId, tasks?.length]);
+
+  useEffect(() => {
+    // Warm the detail-page cache for every visible task so tapping one opens
+    // instantly instead of showing a loading spinner. Virtual (projected
+    // recurrence) rows aren't openable as their own task, so they prefetch
+    // their real source task instead; still-saving tasks are skipped.
+    for (const t of tasks ?? []) {
+      if (t.pending) continue;
+      prefetchTaskDetail(qc, t.sourceId || t.id);
+    }
+  }, [tasks, qc]);
 
   function measuredHeights() {
     return tasks.map((t) => {

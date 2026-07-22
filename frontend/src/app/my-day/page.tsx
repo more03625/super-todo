@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Sun } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
+import { prefetchTaskDetail } from '@/hooks/useRitualTasks';
 import { apiClient, apiPut, getErrorMessage } from '@/services/api-client';
 import type { PaginatedResponse, Task } from '@/types';
 import { COLORS, cardStyle, localDateKey } from '@/components/task-detail/theme';
@@ -44,9 +45,13 @@ export default function MyDayPage() {
     onSettled: () => void qc.invalidateQueries({ queryKey: ['tasks'] }),
   });
 
-  if (loading || !user) return null;
-
   const tasks = tasksQuery.data ?? [];
+
+  useEffect(() => {
+    for (const t of tasks) prefetchTaskDetail(qc, t.id);
+  }, [tasks, qc]);
+
+  if (loading || !user) return null;
 
   return (
     <div style={{ background: COLORS.bg, minHeight: '100dvh', fontFamily: "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
